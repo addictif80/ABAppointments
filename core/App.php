@@ -1,0 +1,95 @@
+<?php
+/**
+ * ABAppointments - Application Bootstrap
+ */
+
+// Load configuration
+require_once __DIR__ . '/../config/config.php';
+
+// Error handling
+if (AB_DEBUG) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+} else {
+    error_reporting(0);
+    ini_set('display_errors', '0');
+}
+
+// Timezone
+date_default_timezone_set(AB_TIMEZONE);
+
+// Session
+if (session_status() === PHP_SESSION_NONE) {
+    session_name(AB_SESSION_NAME);
+    session_set_cookie_params([
+        'lifetime' => AB_SESSION_LIFETIME,
+        'path' => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+
+// Core classes
+require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auth.php';
+require_once __DIR__ . '/Mailer.php';
+require_once __DIR__ . '/Settings.php';
+require_once __DIR__ . '/AppointmentManager.php';
+require_once __DIR__ . '/GoogleCalendar.php';
+
+/**
+ * Helper functions
+ */
+function ab_url(string $path = ''): string {
+    return AB_BASE_URL . '/' . ltrim($path, '/');
+}
+
+function ab_escape(string $str): string {
+    return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+}
+
+function ab_setting(string $key, string $default = ''): string {
+    return Settings::get($key, $default);
+}
+
+function ab_format_date(string $datetime): string {
+    $format = ab_setting('date_format', 'd/m/Y');
+    return date($format, strtotime($datetime));
+}
+
+function ab_format_time(string $datetime): string {
+    $format = ab_setting('time_format', 'H:i');
+    return date($format, strtotime($datetime));
+}
+
+function ab_format_price(float $amount): string {
+    $symbol = ab_setting('currency_symbol', '€');
+    return number_format($amount, 2, ',', ' ') . ' ' . $symbol;
+}
+
+function ab_flash(string $type, string $message): void {
+    $_SESSION['flash'][] = ['type' => $type, 'message' => $message];
+}
+
+function ab_get_flash(): array {
+    $messages = $_SESSION['flash'] ?? [];
+    unset($_SESSION['flash']);
+    return $messages;
+}
+
+function ab_redirect(string $url): void {
+    header('Location: ' . $url);
+    exit;
+}
+
+function ab_json(array $data, int $code = 200): void {
+    http_response_code($code);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function ab_generate_hash(): string {
+    return bin2hex(random_bytes(16));
+}

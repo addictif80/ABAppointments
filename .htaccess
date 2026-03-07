@@ -1,0 +1,33 @@
+RewriteEngine On
+RewriteBase /
+
+# Protect sensitive files
+<FilesMatch "\.(sql|md|sample\.php)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Protect config directory
+RewriteRule ^config/ - [F,L]
+
+# Protect core directory
+RewriteRule ^core/ - [F,L]
+
+# Protect install directory (uncomment after install)
+# RewriteRule ^install/ - [F,L]
+
+# Route API requests
+RewriteRule ^api/(.*)$ api/index.php?route=$1 [QSA,L]
+
+# Route admin requests
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^admin/(.*)$ admin/index.php?page=$1 [QSA,L]
+
+# Route public booking
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^booking/(.*)$ public/index.php?action=$1 [QSA,L]
+
+# Route appointment management
+RewriteRule ^manage/([a-zA-Z0-9]+)$ public/manage.php?hash=$1 [QSA,L]

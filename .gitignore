@@ -1,0 +1,7 @@
+config/config.php
+assets/uploads/*
+!assets/uploads/.gitkeep
+*.log
+.env
+vendor/
+node_modules/
