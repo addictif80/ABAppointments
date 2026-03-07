@@ -26,8 +26,8 @@ if (!in_array($page, $allowedPages)) {
 
 $pageFile = __DIR__ . '/pages/' . $page . '.php';
 if (file_exists($pageFile)) {
-    // Handle POST actions
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Handle POST actions (skip CSRF for login which has its own handling)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($page, $publicPages)) {
         if (!isset($_POST['csrf_token']) || !Auth::verifyCsrf($_POST['csrf_token'])) {
             ab_flash('error', 'Token de sécurité invalide. Veuillez réessayer.');
             ab_redirect(ab_url('admin/index.php?page=' . $page));

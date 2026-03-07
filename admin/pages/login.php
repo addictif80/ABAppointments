@@ -10,13 +10,17 @@ if (Auth::check()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $user = Auth::login($email, $password);
-    if ($user) {
-        ab_redirect(ab_url('admin/index.php?page=dashboard'));
+    if (!isset($_POST['csrf_token']) || !Auth::verifyCsrf($_POST['csrf_token'])) {
+        $error = 'Token de sécurité invalide. Veuillez réessayer.';
     } else {
-        $error = 'Email ou mot de passe incorrect.';
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $user = Auth::login($email, $password);
+        if ($user) {
+            ab_redirect(ab_url('admin/index.php?page=dashboard'));
+        } else {
+            $error = 'Email ou mot de passe incorrect.';
+        }
     }
 }
 
@@ -52,6 +56,7 @@ try { $primaryColor = ab_setting('primary_color', '#e91e63'); } catch (Exception
                 <div class="alert alert-danger"><?= ab_escape($error) ?></div>
                 <?php endif; ?>
                 <form method="POST">
+                    <?= Auth::csrfField() ?>
                     <div class="mb-3">
                         <label class="form-label">Email</label>
                         <div class="input-group">
