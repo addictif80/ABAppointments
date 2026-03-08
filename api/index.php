@@ -29,7 +29,11 @@ try {
             }
 
             $slots = $manager->getAvailableSlots($providerId, $serviceId, $date);
-            ab_json(['slots' => $slots]);
+            $response = ['slots' => $slots];
+            if (AB_DEBUG) {
+                $response['debug'] = $manager->getDebugInfo();
+            }
+            ab_json($response);
             break;
 
         case 'book':

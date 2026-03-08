@@ -363,7 +363,11 @@ $providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE
                     return;
                 }
                 if (!data.slots || data.slots.length === 0) {
-                    document.getElementById('time-slots').innerHTML = '<p class="text-muted text-center">Aucun créneau disponible ce jour</p>';
+                    let debugHtml = '';
+                    if (data.debug) {
+                        debugHtml = '<pre class="text-start small mt-2 p-2 bg-light" style="font-size:11px;">' + JSON.stringify(data.debug, null, 2) + '</pre>';
+                    }
+                    document.getElementById('time-slots').innerHTML = '<p class="text-muted text-center">Aucun créneau disponible ce jour</p>' + debugHtml;
                     return;
                 }
                 let html = '<div class="text-center">';

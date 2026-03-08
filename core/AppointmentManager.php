@@ -12,23 +12,45 @@ class AppointmentManager {
     /**
      * Get available time slots for a provider on a given date
      */
+    private array $debugInfo = [];
+
+    public function getDebugInfo(): array {
+        return $this->debugInfo;
+    }
+
     public function getAvailableSlots(int $providerId, int $serviceId, string $date): array {
+        $this->debugInfo = [];
+
         $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ? AND is_active = 1", [$serviceId]);
-        if (!$service) return [];
+        if (!$service) {
+            $this->debugInfo['reason'] = 'Service introuvable ou inactif (id=' . $serviceId . ')';
+            return [];
+        }
+        $this->debugInfo['service'] = $service['name'] . ' (' . $service['duration'] . 'min)';
 
         $dayOfWeek = (int) date('w', strtotime($date));
+        $this->debugInfo['day_of_week'] = $dayOfWeek;
         $workingHours = $this->db->fetchOne(
             "SELECT * FROM ab_working_hours WHERE provider_id = ? AND day_of_week = ? AND is_active = 1",
             [$providerId, $dayOfWeek]
         );
-        if (!$workingHours) return [];
+        if (!$workingHours) {
+            $allHours = $this->db->fetchAll("SELECT day_of_week, start_time, end_time, is_active FROM ab_working_hours WHERE provider_id = ?", [$providerId]);
+            $this->debugInfo['reason'] = 'Pas d\'horaires pour ce prestataire (id=' . $providerId . ') le jour ' . $dayOfWeek;
+            $this->debugInfo['all_hours'] = $allHours;
+            return [];
+        }
+        $this->debugInfo['working_hours'] = $workingHours['start_time'] . ' - ' . $workingHours['end_time'];
 
         // Check if holiday
         $holiday = $this->db->fetchOne(
             "SELECT id FROM ab_holidays WHERE (provider_id = ? OR provider_id IS NULL) AND ? BETWEEN date_start AND date_end",
             [$providerId, $date]
         );
-        if ($holiday) return [];
+        if ($holiday) {
+            $this->debugInfo['reason'] = 'Jour férié/congé';
+            return [];
+        }
 
         // Get existing appointments
         $appointments = $this->db->fetchAll(
@@ -55,9 +77,25 @@ class AppointmentManager {
         $minAdvance = (int) Settings::get('booking_advance_min', '60') * 60;
         $maxAdvance = (int) Settings::get('booking_advance_max', '43200') * 60;
 
+        $this->debugInfo['now'] = date('Y-m-d H:i:s', $now);
+        $this->debugInfo['min_advance_hours'] = round($minAdvance / 3600, 1);
+        $this->debugInfo['max_advance_days'] = round($maxAdvance / 86400, 1);
+        $this->debugInfo['slot_range'] = date('H:i', $startTime) . ' - ' . date('H:i', $endTime);
+        $this->debugInfo['earliest_bookable'] = date('Y-m-d H:i', $now + $minAdvance);
+        $this->debugInfo['latest_bookable'] = date('Y-m-d H:i', $now + $maxAdvance);
+
+        $skippedAdvance = 0;
+        $skippedBreak = 0;
+        $skippedConflict = 0;
+        $totalChecked = 0;
+
         for ($time = $startTime; $time + ($service['duration'] * 60) <= $endTime; $time += $interval * 60) {
+            $totalChecked++;
             // Check advance limits
-            if ($time < $now + $minAdvance || $time > $now + $maxAdvance) continue;
+            if ($time < $now + $minAdvance || $time > $now + $maxAdvance) {
+                $skippedAdvance++;
+                continue;
+            }
 
             $slotStart = $time + ($service['buffer_before'] * 60);
             $slotEnd = $slotStart + ($service['duration'] * 60);
@@ -67,7 +105,10 @@ class AppointmentManager {
             if ($workingHours['break_start'] && $workingHours['break_end']) {
                 $breakStart = strtotime($date . ' ' . $workingHours['break_start']);
                 $breakEnd = strtotime($date . ' ' . $workingHours['break_end']);
-                if ($time < $breakEnd && $blockEnd > $breakStart) continue;
+                if ($time < $breakEnd && $blockEnd > $breakStart) {
+                    $skippedBreak++;
+                    continue;
+                }
             }
 
             // Check additional breaks
@@ -80,7 +121,10 @@ class AppointmentManager {
                     break;
                 }
             }
-            if ($inBreak) continue;
+            if ($inBreak) {
+                $skippedBreak++;
+                continue;
+            }
 
             // Check existing appointments
             $conflict = false;
@@ -92,10 +136,19 @@ class AppointmentManager {
                     break;
                 }
             }
-            if ($conflict) continue;
+            if ($conflict) {
+                $skippedConflict++;
+                continue;
+            }
 
             $slots[] = date('H:i', $time);
         }
+
+        $this->debugInfo['total_checked'] = $totalChecked;
+        $this->debugInfo['skipped_advance'] = $skippedAdvance;
+        $this->debugInfo['skipped_break'] = $skippedBreak;
+        $this->debugInfo['skipped_conflict'] = $skippedConflict;
+        $this->debugInfo['slots_found'] = count($slots);
 
         return $slots;
     }
