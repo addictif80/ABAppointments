@@ -40,7 +40,7 @@ $monthRevenue = $db->fetchOne($revenueSql)['total'];
 <?php $adminAnnouncement = ab_setting('admin_announcement'); ?>
 <?php if (!empty($adminAnnouncement)): ?>
 <div class="alert alert-info mb-4">
-    <i class="bi bi-megaphone-fill"></i> <?= nl2br(ab_escape($adminAnnouncement)) ?>
+    <i class="bi bi-megaphone-fill"></i> <?= ab_safe_html($adminAnnouncement) ?>
 </div>
 <?php endif; ?>
 

@@ -89,7 +89,7 @@ $bookingAnnouncement = ab_setting('booking_announcement');
     <div class="booking-container">
         <?php if (!empty($bookingAnnouncement)): ?>
         <div class="alert alert-info mb-3" style="border-radius:12px;">
-            <i class="bi bi-megaphone-fill"></i> <?= nl2br(ab_escape($bookingAnnouncement)) ?>
+            <i class="bi bi-megaphone-fill"></i> <?= ab_safe_html($bookingAnnouncement) ?>
         </div>
         <?php endif; ?>
 
@@ -140,7 +140,7 @@ $bookingAnnouncement = ab_setting('booking_announcement');
                             <div class="provider-avatar"><?= strtoupper(substr($p['first_name'], 0, 1) . substr($p['last_name'], 0, 1)) ?></div>
                             <strong><?= ab_escape($p['first_name'] . ' ' . $p['last_name']) ?></strong>
                             <?php if (!empty($p['welcome_message'])): ?>
-                            <small class="text-muted mt-1 d-block" style="font-size:0.8rem;"><?= ab_escape($p['welcome_message']) ?></small>
+                            <small class="text-muted mt-1 d-block" style="font-size:0.8rem;"><?= ab_safe_html($p['welcome_message']) ?></small>
                             <?php endif; ?>
                         </div>
                     </div>

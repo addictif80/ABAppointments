@@ -65,6 +65,17 @@ function ab_escape(string $str): string {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 }
 
+function ab_safe_html(?string $str): string {
+    if ($str === null || $str === '') return '';
+    $allowed = '<b><i><u><strong><em><a><br><ul><ol><li><p><span><h5><h6><small><hr>';
+    $clean = strip_tags($str, $allowed);
+    // Remove dangerous attributes (on*, style with expression/url, javascript: in href)
+    $clean = preg_replace('/\s+on\w+\s*=\s*["\'][^"\']*["\']/i', '', $clean);
+    $clean = preg_replace('/\s+on\w+\s*=\s*\S+/i', '', $clean);
+    $clean = preg_replace('/href\s*=\s*["\']?\s*javascript\s*:/i', 'href="', $clean);
+    return $clean;
+}
+
 function ab_setting(string $key, string $default = ''): string {
     return Settings::get($key, $default);
 }
