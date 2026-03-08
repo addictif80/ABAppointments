@@ -42,7 +42,23 @@ require_once __DIR__ . '/GoogleCalendar.php';
  * Helper functions
  */
 function ab_url(string $path = ''): string {
-    return AB_BASE_URL . '/' . ltrim($path, '/');
+    static $baseUrl = null;
+    if ($baseUrl === null) {
+        if (defined('AB_BASE_URL') && AB_BASE_URL !== '' && AB_BASE_URL !== 'http://localhost/ABAppointments') {
+            $baseUrl = rtrim(AB_BASE_URL, '/');
+        } elseif (isset($_SERVER['HTTP_HOST'])) {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+            // Go up one level if we're inside a subdirectory (public/, admin/, api/)
+            if (preg_match('#/(public|admin|api)$#', $scriptDir)) {
+                $scriptDir = dirname($scriptDir);
+            }
+            $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . rtrim($scriptDir, '/');
+        } else {
+            $baseUrl = rtrim(AB_BASE_URL, '/');
+        }
+    }
+    return $baseUrl . '/' . ltrim($path, '/');
 }
 
 function ab_escape(string $str): string {

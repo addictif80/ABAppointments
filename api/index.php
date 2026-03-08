@@ -81,19 +81,46 @@ try {
             ]);
 
             if ($result) {
-                // Sync to Google Calendar
-                $gcal = new GoogleCalendar();
-                if ($gcal->isConfigured()) {
-                    $gcal->syncAppointment($result['id']);
-                }
-
-                ab_json([
+                $responseData = [
                     'success' => true,
                     'hash' => $result['hash'],
                     'status' => $result['status'],
                     'deposit' => $result['deposit'],
                     'manage_url' => ab_url('manage/' . $result['hash']),
-                ]);
+                ];
+
+                // Send response immediately, then do slow tasks (emails, calendar sync)
+                http_response_code(200);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($responseData, JSON_UNESCAPED_UNICODE);
+
+                // Flush response to client before sending emails
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                } else {
+                    if (ob_get_level() > 0) ob_end_flush();
+                    flush();
+                }
+
+                // Now send emails (client won't wait)
+                try {
+                    $manager->sendNotifications($result['id'], $result['status'], $result['deposit']);
+                } catch (Exception $e) {
+                    // Log email error silently
+                    error_log('ABAppointments email error: ' . $e->getMessage());
+                }
+
+                // Sync to Google Calendar
+                try {
+                    $gcal = new GoogleCalendar();
+                    if ($gcal->isConfigured()) {
+                        $gcal->syncAppointment($result['id']);
+                    }
+                } catch (Exception $e) {
+                    error_log('ABAppointments gcal error: ' . $e->getMessage());
+                }
+
+                exit;
             } else {
                 ab_json(['error' => 'Erreur lors de la création du rendez-vous'], 500);
             }

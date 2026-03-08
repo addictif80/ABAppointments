@@ -224,9 +224,6 @@ class AppointmentManager {
 
             $this->db->commit();
 
-            // Send notifications
-            $this->sendNotifications($appointmentId, $status, $depositInfo);
-
             return [
                 'id' => $appointmentId,
                 'hash' => $hash,
@@ -390,7 +387,7 @@ class AppointmentManager {
     /**
      * Send notifications for new appointment
      */
-    private function sendNotifications(int $appointmentId, string $status, ?array $depositInfo): void {
+    public function sendNotifications(int $appointmentId, string $status, ?array $depositInfo): void {
         $appointment = $this->getAppointment($appointmentId);
         if (!$appointment) return;
 
