@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'last_name' => trim($_POST['last_name']),
         'email' => trim($_POST['email']),
         'phone' => trim($_POST['phone'] ?? ''),
+        'welcome_message' => trim($_POST['welcome_message'] ?? ''),
     ];
 
     if (!empty($_POST['new_password'])) {
@@ -38,6 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-6"><label class="form-label">Nom</label><input type="text" name="last_name" class="form-control" required value="<?= ab_escape($user['last_name']) ?>"></div>
                         <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" required value="<?= ab_escape($user['email']) ?>"></div>
                         <div class="col-md-6"><label class="form-label">Téléphone</label><input type="tel" name="phone" class="form-control" value="<?= ab_escape($user['phone'] ?? '') ?>"></div>
+                        <div class="col-12">
+                            <label class="form-label">Message pour les clients</label>
+                            <textarea name="welcome_message" class="form-control" rows="2" placeholder="Message affiché aux clients qui vous choisissent"><?= ab_escape($user['welcome_message'] ?? '') ?></textarea>
+                            <small class="text-muted">Ce message sera visible lors de la réservation en ligne.</small>
+                        </div>
                         <div class="col-12"><hr><h6>Changer le mot de passe</h6></div>
                         <div class="col-md-6"><label class="form-label">Mot de passe actuel</label><input type="password" name="current_password" class="form-control"></div>
                         <div class="col-md-6"><label class="form-label">Nouveau mot de passe</label><input type="password" name="new_password" class="form-control" minlength="6"></div>

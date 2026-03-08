@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'smtp_from_email', 'smtp_from_name',
         'google_client_id', 'google_client_secret', 'google_redirect_uri',
         'primary_color', 'secondary_color', 'embed_enabled',
+        'booking_announcement', 'admin_announcement',
     ];
 
     foreach ($settingsToSave as $key) {
@@ -63,6 +64,17 @@ $tab = $_GET['tab'] ?? 'general';
                     </select>
                 </div>
                 <div class="col-12"><label class="form-label">Adresse</label><textarea name="business_address" class="form-control" rows="2"><?= ab_escape(ab_setting('business_address')) ?></textarea></div>
+                <div class="col-12"><hr></div>
+                <div class="col-12">
+                    <label class="form-label"><i class="bi bi-megaphone"></i> Annonce pour les clients (page de réservation)</label>
+                    <textarea name="booking_announcement" class="form-control" rows="2" placeholder="Ce message sera affiché en haut de la page de réservation"><?= ab_escape(ab_setting('booking_announcement')) ?></textarea>
+                    <small class="text-muted">Laissez vide pour ne rien afficher. Idéal pour informer d'une fermeture, promotion, etc.</small>
+                </div>
+                <div class="col-12">
+                    <label class="form-label"><i class="bi bi-info-circle"></i> Annonce interne (panneau d'administration)</label>
+                    <textarea name="admin_announcement" class="form-control" rows="2" placeholder="Ce message sera visible par les prestataires et administrateurs sur le tableau de bord"><?= ab_escape(ab_setting('admin_announcement')) ?></textarea>
+                    <small class="text-muted">Visible sur le tableau de bord par tous les prestataires et administrateurs.</small>
+                </div>
                 <div class="col-md-3"><label class="form-label">Format date</label><input type="text" name="date_format" class="form-control" value="<?= ab_escape(ab_setting('date_format', 'd/m/Y')) ?>"></div>
                 <div class="col-md-3"><label class="form-label">Format heure</label><input type="text" name="time_format" class="form-control" value="<?= ab_escape(ab_setting('time_format', 'H:i')) ?>"></div>
                 <div class="col-md-3"><label class="form-label">Devise</label><input type="text" name="currency" class="form-control" value="<?= ab_escape(ab_setting('currency', 'EUR')) ?>"></div>

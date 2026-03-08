@@ -12,6 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'email' => trim($_POST['email']),
             'phone' => trim($_POST['phone'] ?? ''),
             'role' => $_POST['role'] ?? 'provider',
+            'welcome_message' => trim($_POST['welcome_message'] ?? ''),
+            'is_visible_booking' => isset($_POST['is_visible_booking']) ? 1 : 0,
             'notes' => trim($_POST['notes'] ?? ''),
             'is_active' => isset($_POST['is_active']) ? 1 : 0,
         ];
@@ -90,13 +92,22 @@ if ($action === 'edit' || $action === 'create'):
                     </select>
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Notes</label>
+                    <label class="form-label">Message pour les clients</label>
+                    <textarea name="welcome_message" class="form-control" rows="2" placeholder="Message affiché aux clients qui choisissent ce prestataire"><?= ab_escape($provider['welcome_message'] ?? '') ?></textarea>
+                    <small class="text-muted">Ce message sera visible par les clients lors de la sélection du prestataire.</small>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Notes internes</label>
                     <textarea name="notes" class="form-control" rows="2"><?= ab_escape($provider['notes'] ?? '') ?></textarea>
                 </div>
                 <div class="col-md-6">
-                    <div class="form-check form-switch">
+                    <div class="form-check form-switch mb-2">
                         <input type="checkbox" name="is_active" class="form-check-input" <?= ($provider['is_active'] ?? 1) ? 'checked' : '' ?>>
                         <label class="form-check-label">Actif</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" name="is_visible_booking" class="form-check-input" <?= ($provider['is_visible_booking'] ?? 1) ? 'checked' : '' ?>>
+                        <label class="form-check-label">Visible pour les clients (réservation en ligne)</label>
                     </div>
                 </div>
                 <div class="col-12">
@@ -117,7 +128,7 @@ if ($action === 'edit' || $action === 'create'):
 <div class="card">
     <div class="table-responsive">
         <table class="table table-hover mb-0">
-            <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Rôle</th><th>Actif</th><th></th></tr></thead>
+            <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Rôle</th><th>Actif</th><th>Visible clients</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($providers as $p): ?>
             <tr>
@@ -126,6 +137,7 @@ if ($action === 'edit' || $action === 'create'):
                 <td><?= ab_escape($p['phone']) ?></td>
                 <td><span class="badge <?= $p['role'] === 'admin' ? 'bg-danger' : 'bg-info' ?>"><?= $p['role'] ?></span></td>
                 <td><?= $p['is_active'] ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>' ?></td>
+                <td><?= ($p['is_visible_booking'] ?? 1) ? '<i class="bi bi-eye-fill text-success"></i>' : '<i class="bi bi-eye-slash text-muted"></i>' ?></td>
                 <td>
                     <a href="<?= ab_url('admin/index.php?page=providers&action=edit&id=' . $p['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
                     <?php if ($p['id'] != Auth::userId()): ?>

@@ -162,13 +162,13 @@ try {
 
         case 'providers':
             $serviceId = (int)($_GET['service_id'] ?? 0);
-            $sql = "SELECT u.id, u.first_name, u.last_name FROM ab_users u";
+            $sql = "SELECT u.id, u.first_name, u.last_name, u.welcome_message FROM ab_users u";
             $params = [];
             if ($serviceId) {
-                $sql .= " JOIN ab_provider_services ps ON u.id = ps.provider_id WHERE ps.service_id = ? AND u.is_active = 1";
+                $sql .= " JOIN ab_provider_services ps ON u.id = ps.provider_id WHERE ps.service_id = ? AND u.is_active = 1 AND u.is_visible_booking = 1";
                 $params[] = $serviceId;
             } else {
-                $sql .= " WHERE u.is_active = 1";
+                $sql .= " WHERE u.is_active = 1 AND u.is_visible_booking = 1";
             }
             $sql .= " ORDER BY u.first_name";
             $providers = $db->fetchAll($sql, $params);

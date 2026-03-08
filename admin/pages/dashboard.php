@@ -37,6 +37,13 @@ if ($providerId) $revenueSql .= " AND a.provider_id = $providerId";
 $monthRevenue = $db->fetchOne($revenueSql)['total'];
 ?>
 
+<?php $adminAnnouncement = ab_setting('admin_announcement'); ?>
+<?php if (!empty($adminAnnouncement)): ?>
+<div class="alert alert-info mb-4">
+    <i class="bi bi-megaphone-fill"></i> <?= nl2br(ab_escape($adminAnnouncement)) ?>
+</div>
+<?php endif; ?>
+
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
         <div class="card stat-card p-3">

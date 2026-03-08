@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS `ab_users` (
   `role` ENUM('admin', 'provider') NOT NULL DEFAULT 'provider',
   `avatar` VARCHAR(255) DEFAULT NULL,
   `timezone` VARCHAR(50) DEFAULT 'Europe/Paris',
+  `welcome_message` TEXT COMMENT 'Message affiché aux clients lors de la sélection',
+  `is_visible_booking` TINYINT(1) DEFAULT 1 COMMENT 'Visible dans le processus de réservation',
   `notes` TEXT,
   `is_active` TINYINT(1) DEFAULT 1,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -249,7 +251,9 @@ INSERT INTO `ab_settings` (`setting_key`, `setting_value`) VALUES
 ('google_redirect_uri', ''),
 ('primary_color', '#e91e63'),
 ('secondary_color', '#9c27b0'),
-('embed_enabled', '1');
+('embed_enabled', '1'),
+('booking_announcement', ''),
+('admin_announcement', '');
 
 -- Templates email par défaut
 INSERT INTO `ab_email_templates` (`slug`, `name`, `subject`, `body`, `variables`) VALUES

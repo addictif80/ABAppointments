@@ -16,7 +16,8 @@ $services = $db->fetchAll(
      WHERE s.is_active = 1 ORDER BY sc.sort_order, s.sort_order, s.name"
 );
 
-$providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE is_active = 1 AND role IN ('admin','provider') ORDER BY first_name");
+$providers = $db->fetchAll("SELECT id, first_name, last_name, welcome_message FROM ab_users WHERE is_active = 1 AND is_visible_booking = 1 AND role IN ('admin','provider') ORDER BY first_name");
+$bookingAnnouncement = ab_setting('booking_announcement');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -86,6 +87,12 @@ $providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE
     </div>
 
     <div class="booking-container">
+        <?php if (!empty($bookingAnnouncement)): ?>
+        <div class="alert alert-info mb-3" style="border-radius:12px;">
+            <i class="bi bi-megaphone-fill"></i> <?= nl2br(ab_escape($bookingAnnouncement)) ?>
+        </div>
+        <?php endif; ?>
+
         <!-- Step 1: Choose service -->
         <div class="booking-step active" id="step-1">
             <div class="card p-4">
@@ -129,9 +136,12 @@ $providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE
                 <div class="row g-3" id="providers-list">
                     <?php foreach ($providers as $p): ?>
                     <div class="col-6 col-md-4">
-                        <div class="card provider-card" data-provider-id="<?= $p['id'] ?>" data-name="<?= ab_escape($p['first_name'] . ' ' . $p['last_name']) ?>">
+                        <div class="card provider-card" data-provider-id="<?= $p['id'] ?>" data-name="<?= ab_escape($p['first_name'] . ' ' . $p['last_name']) ?>" data-message="<?= ab_escape($p['welcome_message'] ?? '') ?>">
                             <div class="provider-avatar"><?= strtoupper(substr($p['first_name'], 0, 1) . substr($p['last_name'], 0, 1)) ?></div>
                             <strong><?= ab_escape($p['first_name'] . ' ' . $p['last_name']) ?></strong>
+                            <?php if (!empty($p['welcome_message'])): ?>
+                            <small class="text-muted mt-1 d-block" style="font-size:0.8rem;"><?= ab_escape($p['welcome_message']) ?></small>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
