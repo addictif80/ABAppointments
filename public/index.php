@@ -349,8 +349,19 @@ $providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE
     function loadTimeSlots() {
         document.getElementById('time-slots').innerHTML = '<div class="loading-spinner"><div class="spinner-border text-secondary"></div><p>Chargement...</p></div>';
         fetch(API_URL + '?route=available-slots&service_id=' + booking.serviceId + '&provider_id=' + booking.providerId + '&date=' + booking.date)
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) {
+                    return r.text().then(text => {
+                        try { return JSON.parse(text); } catch(e) { throw new Error(text || 'Erreur serveur ' + r.status); }
+                    }).then(data => { throw new Error(data.error || 'Erreur serveur ' + r.status); });
+                }
+                return r.json();
+            })
             .then(data => {
+                if (data.error) {
+                    document.getElementById('time-slots').innerHTML = '<p class="text-danger text-center">' + data.error + '</p>';
+                    return;
+                }
                 if (!data.slots || data.slots.length === 0) {
                     document.getElementById('time-slots').innerHTML = '<p class="text-muted text-center">Aucun créneau disponible ce jour</p>';
                     return;
@@ -370,8 +381,9 @@ $providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE
                     });
                 });
             })
-            .catch(() => {
-                document.getElementById('time-slots').innerHTML = '<p class="text-danger text-center">Erreur de chargement</p>';
+            .catch(err => {
+                console.error('Slot loading error:', err);
+                document.getElementById('time-slots').innerHTML = '<p class="text-danger text-center">Erreur de chargement : ' + (err.message || 'vérifiez la console') + '</p>';
             });
     }
 
