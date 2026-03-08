@@ -6,6 +6,9 @@ ALTER TABLE `ab_users`
     ADD COLUMN `welcome_message` TEXT COMMENT 'Message affiché aux clients lors de la sélection' AFTER `timezone`,
     ADD COLUMN `is_visible_booking` TINYINT(1) DEFAULT 1 COMMENT 'Visible dans le processus de réservation' AFTER `welcome_message`;
 
+-- Set default values for existing users
+UPDATE `ab_users` SET `is_visible_booking` = 1 WHERE `is_visible_booking` IS NULL;
+
 -- Add announcement settings
 INSERT IGNORE INTO `ab_settings` (`setting_key`, `setting_value`) VALUES
 ('booking_announcement', ''),
