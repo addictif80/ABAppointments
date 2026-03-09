@@ -3,28 +3,40 @@ $db = Database::getInstance();
 $user = $db->fetchOne("SELECT * FROM ab_users WHERE id = ?", [Auth::userId()]);
 
 $caldav = new CalDAV();
-$caldavConfig = $caldav->getConfig(Auth::userId());
+try {
+    $caldavConfig = $caldav->getConfig(Auth::userId());
+} catch (Exception $e) {
+    $caldavConfig = null;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postAction = $_POST['form_action'] ?? 'profile';
 
     if ($postAction === 'caldav') {
-        $caldav->saveConfig(Auth::userId(), [
-            'caldav_url' => $_POST['caldav_url'] ?? '',
-            'caldav_username' => $_POST['caldav_username'] ?? '',
-            'caldav_password' => $_POST['caldav_password'] ?? '',
-            'caldav_enabled' => isset($_POST['caldav_enabled']),
-        ]);
-        ab_flash('success', 'Configuration CalDAV enregistrée.');
+        try {
+            $caldav->saveConfig(Auth::userId(), [
+                'caldav_url' => $_POST['caldav_url'] ?? '',
+                'caldav_username' => $_POST['caldav_username'] ?? '',
+                'caldav_password' => $_POST['caldav_password'] ?? '',
+                'caldav_enabled' => isset($_POST['caldav_enabled']),
+            ]);
+            ab_flash('success', 'Configuration CalDAV enregistrée.');
+        } catch (Exception $e) {
+            ab_flash('error', 'Erreur CalDAV : la table de synchronisation n\'existe pas. Veuillez exécuter la migration.');
+        }
         ab_redirect(ab_url('admin/index.php?page=profile'));
     }
 
     if ($postAction === 'caldav_test') {
-        $result = $caldav->testConnection(Auth::userId());
-        if ($result['success']) {
-            ab_flash('success', 'Connexion CalDAV réussie !');
-        } else {
-            ab_flash('error', 'Échec CalDAV : ' . $result['error']);
+        try {
+            $result = $caldav->testConnection(Auth::userId());
+            if ($result['success']) {
+                ab_flash('success', 'Connexion CalDAV réussie !');
+            } else {
+                ab_flash('error', 'Échec CalDAV : ' . $result['error']);
+            }
+        } catch (Exception $e) {
+            ab_flash('error', 'Erreur CalDAV : la table de synchronisation n\'existe pas. Veuillez exécuter la migration.');
         }
         ab_redirect(ab_url('admin/index.php?page=profile'));
     }
