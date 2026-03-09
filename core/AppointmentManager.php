@@ -323,7 +323,8 @@ class AppointmentManager {
                     c.email as customer_email, c.phone as customer_phone,
                     s.name as service_name, s.duration as service_duration, s.price as service_price,
                     s.color as service_color,
-                    u.first_name as provider_first_name, u.last_name as provider_last_name
+                    u.first_name as provider_first_name, u.last_name as provider_last_name,
+                    u.email as provider_email
              FROM ab_appointments a
              JOIN ab_customers c ON a.customer_id = c.id
              JOIN ab_services s ON a.service_id = s.id
@@ -342,7 +343,8 @@ class AppointmentManager {
                     c.first_name as customer_first_name, c.last_name as customer_last_name,
                     c.email as customer_email, c.phone as customer_phone,
                     s.name as service_name, s.duration as service_duration, s.price as service_price,
-                    u.first_name as provider_first_name, u.last_name as provider_last_name
+                    u.first_name as provider_first_name, u.last_name as provider_last_name,
+                    u.email as provider_email
              FROM ab_appointments a
              JOIN ab_customers c ON a.customer_id = c.id
              JOIN ab_services s ON a.service_id = s.id
@@ -431,16 +433,24 @@ class AppointmentManager {
 
         // Send admin notification
         $adminEmail = ab_setting('business_email');
+        $notifVars = [
+            'customer_name' => $customerName,
+            'customer_email' => $appointment['customer_email'],
+            'customer_phone' => $appointment['customer_phone'],
+            'service_name' => $appointment['service_name'],
+            'appointment_date' => ab_format_date($appointment['start_datetime']),
+            'appointment_time' => ab_format_time($appointment['start_datetime']),
+            'admin_url' => ab_url('admin/index.php?page=appointments'),
+        ];
+
         if ($adminEmail) {
-            $mailer->sendTemplate('admin_new_appointment', $adminEmail, [
-                'customer_name' => $customerName,
-                'customer_email' => $appointment['customer_email'],
-                'customer_phone' => $appointment['customer_phone'],
-                'service_name' => $appointment['service_name'],
-                'appointment_date' => ab_format_date($appointment['start_datetime']),
-                'appointment_time' => ab_format_time($appointment['start_datetime']),
-                'admin_url' => ab_url('admin/index.php?page=appointments'),
-            ]);
+            $mailer->sendTemplate('admin_new_appointment', $adminEmail, $notifVars);
+        }
+
+        // Send provider notification (if different from admin email)
+        $providerEmail = $appointment['provider_email'] ?? '';
+        if ($providerEmail && $providerEmail !== $adminEmail) {
+            $mailer->sendTemplate('admin_new_appointment', $providerEmail, $notifVars);
         }
     }
 
