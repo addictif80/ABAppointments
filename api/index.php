@@ -120,6 +120,14 @@ try {
                     error_log('ABAppointments gcal error: ' . $e->getMessage());
                 }
 
+                // Sync to CalDAV
+                try {
+                    $caldav = new CalDAV();
+                    $caldav->syncAppointment($result['id']);
+                } catch (Exception $e) {
+                    error_log('ABAppointments caldav error: ' . $e->getMessage());
+                }
+
                 exit;
             } else {
                 ab_json(['error' => 'Erreur lors de la création du rendez-vous'], 500);

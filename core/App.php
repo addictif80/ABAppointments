@@ -37,6 +37,7 @@ require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Settings.php';
 require_once __DIR__ . '/AppointmentManager.php';
 require_once __DIR__ . '/GoogleCalendar.php';
+require_once __DIR__ . '/CalDAV.php';
 
 /**
  * Helper functions
