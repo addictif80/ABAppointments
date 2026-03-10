@@ -1,47 +1,44 @@
 <?php
 /**
- * ABAppointments - Admin Router
+ * WebPanel - Admin Panel Router
  */
 require_once __DIR__ . '/../core/App.php';
 
 $page = $_GET['page'] ?? 'dashboard';
 
-// Public pages (no auth needed)
-$publicPages = ['login', 'google-callback'];
-
-if (!in_array($page, $publicPages)) {
-    Auth::requireAuth();
+if ($page !== 'login') {
+    Auth::requireAdmin();
 }
 
-// Route to page
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $page !== 'login') {
+    if (!wp_verify_csrf()) {
+        wp_flash('error', 'Token de securite invalide.');
+        wp_redirect($_SERVER['REQUEST_URI']);
+    }
+}
+
 $allowedPages = [
-    'login', 'dashboard', 'appointments', 'services', 'categories',
-    'providers', 'customers', 'settings', 'working-hours', 'holidays',
-    'deposits', 'email-templates', 'google-callback', 'profile'
+    'login', 'dashboard', 'clients', 'client-detail',
+    'products', 'subscriptions', 'subscription-detail',
+    'invoices', 'invoice-detail', 'payments',
+    'tickets', 'ticket-detail',
+    'monitoring', 'incidents',
+    'ip-pool', 'os-templates', 'email-templates',
+    'settings', 'activity-log', 'logout'
 ];
 
-if (!in_array($page, $allowedPages)) {
-    $page = 'dashboard';
+if ($page === 'logout') {
+    Auth::logout();
+    wp_redirect(wp_url('admin/?page=login'));
 }
 
-$pageFile = __DIR__ . '/pages/' . $page . '.php';
-if (file_exists($pageFile)) {
-    // Handle POST actions (skip CSRF for login which has its own handling)
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($page, $publicPages)) {
-        if (!isset($_POST['csrf_token']) || !Auth::verifyCsrf($_POST['csrf_token'])) {
-            ab_flash('error', 'Token de sécurité invalide. Veuillez réessayer.');
-            ab_redirect(ab_url('admin/index.php?page=' . $page));
-        }
-    }
+if (!in_array($page, $allowedPages)) $page = 'dashboard';
 
-    if ($page === 'login') {
-        require $pageFile;
-    } else {
-        // Wrap in admin layout
-        $pageContent = $page;
-        require __DIR__ . '/layout.php';
-    }
+$pageFile = __DIR__ . "/pages/$page.php";
+if (!file_exists($pageFile)) { $page = 'dashboard'; $pageFile = __DIR__ . '/pages/dashboard.php'; }
+
+if ($page === 'login') {
+    require $pageFile;
 } else {
-    http_response_code(404);
-    echo 'Page non trouvée';
+    require __DIR__ . '/layout.php';
 }

@@ -7,28 +7,29 @@ RewriteBase /
     Deny from all
 </FilesMatch>
 
-# Protect config directory
+# Block access to sensitive directories
 RewriteRule ^config/ - [F,L]
-
-# Protect core directory
 RewriteRule ^core/ - [F,L]
+RewriteRule ^install/ - [F,L]
+RewriteRule ^cron/ - [F,L]
 
-# Protect install directory (uncomment after install)
-# RewriteRule ^install/ - [F,L]
+# API routes
+RewriteRule ^api/(.*)$ api/index.php [QSA,L]
 
-# Route API requests (skip if already targeting index.php)
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^api/(.*)$ api/index.php?route=$1 [QSA,L]
+# Stripe webhook
+RewriteRule ^webhook/stripe$ api/stripe-webhook.php [QSA,L]
 
-# Route admin requests
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^admin/(.*)$ admin/index.php?page=$1 [QSA,L]
-
-# Route public booking
+# Admin panel
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^booking/(.*)$ public/index.php?action=$1 [QSA,L]
+RewriteRule ^admin(.*)$ admin/index.php [QSA,L]
 
-# Route appointment management
-RewriteRule ^manage/([a-zA-Z0-9]+)$ public/manage.php?hash=$1 [QSA,L]
+# Client panel
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^client(.*)$ client/index.php [QSA,L]
+
+# Public pages
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/index.php [QSA,L]

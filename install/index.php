@@ -1,29 +1,27 @@
 <?php
 /**
- * ABAppointments - Installer
+ * WebPanel - Installer
+ * 4-step wizard: Requirements → Database → Admin Account → Success
  */
 session_start();
 $step = (int)($_GET['step'] ?? 1);
 $error = '';
-$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($step === 1) {
-        // Check PHP requirements
         $checks = [
-            'PHP >= 8.0' => version_compare(PHP_VERSION, '8.0.0', '>='),
+            'PHP >= 8.1' => version_compare(PHP_VERSION, '8.1.0', '>='),
             'PDO MySQL' => extension_loaded('pdo_mysql'),
+            'cURL' => extension_loaded('curl'),
+            'OpenSSL' => extension_loaded('openssl'),
             'JSON' => extension_loaded('json'),
             'mbstring' => extension_loaded('mbstring'),
-            'openssl' => extension_loaded('openssl'),
         ];
-        $allGood = !in_array(false, $checks);
-        if ($allGood) {
+        if (!in_array(false, $checks)) {
             header('Location: ?step=2');
             exit;
-        } else {
-            $error = 'Certaines extensions PHP requises sont manquantes.';
         }
+        $error = 'Certaines extensions PHP requises sont manquantes.';
     }
 
     if ($step === 2) {
@@ -34,14 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $baseUrl = rtrim(trim($_POST['base_url']), '/');
 
         try {
-            $pdo = new PDO("mysql:host=$dbHost;charset=utf8mb4", $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            $pdo = new PDO("mysql:host=$dbHost;charset=utf8mb4", $dbUser, $dbPass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+            ]);
             $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $pdo->exec("USE `$dbName`");
 
-            // Execute schema
             $schema = file_get_contents(__DIR__ . '/schema.sql');
-            // Remove the placeholder admin insert, we'll do it properly
-            $schema = preg_replace("/INSERT INTO `ab_users`.*?;/s", '', $schema);
             $pdo->exec($schema);
 
             $_SESSION['install'] = [
@@ -55,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ?step=3');
             exit;
         } catch (PDOException $e) {
-            $error = 'Erreur de connexion à la base de données : ' . $e->getMessage();
+            $error = 'Erreur de connexion : ' . $e->getMessage();
         }
     }
 
@@ -63,44 +60,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $install = $_SESSION['install'] ?? null;
         if (!$install) { header('Location: ?step=2'); exit; }
 
-        $businessName = trim($_POST['business_name']);
+        $siteName = trim($_POST['site_name']);
+        $companyName = trim($_POST['company_name']);
         $adminEmail = trim($_POST['admin_email']);
         $adminPassword = $_POST['admin_password'];
         $adminFirstName = trim($_POST['admin_first_name']);
         $adminLastName = trim($_POST['admin_last_name']);
 
-        if (strlen($adminPassword) < 6) {
-            $error = 'Le mot de passe doit faire au moins 6 caractères.';
+        if (strlen($adminPassword) < 8) {
+            $error = 'Le mot de passe doit faire au moins 8 caractères.';
         } else {
             try {
-                $pdo = new PDO("mysql:host={$install['db_host']};dbname={$install['db_name']};charset=utf8mb4", $install['db_user'], $install['db_pass'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $pdo = new PDO(
+                    "mysql:host={$install['db_host']};dbname={$install['db_name']};charset=utf8mb4",
+                    $install['db_user'], $install['db_pass'],
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
 
-                // Create admin user
                 $hashedPassword = password_hash($adminPassword, PASSWORD_BCRYPT, ['cost' => 12]);
-                $stmt = $pdo->prepare("INSERT INTO ab_users (first_name, last_name, email, password, role) VALUES (?, ?, ?, ?, 'admin')");
+                $stmt = $pdo->prepare("INSERT INTO wp_users (first_name, last_name, email, password, role, is_active) VALUES (?, ?, ?, ?, 'admin', 1)");
                 $stmt->execute([$adminFirstName, $adminLastName, $adminEmail, $hashedPassword]);
 
                 // Update settings
-                $pdo->prepare("UPDATE ab_settings SET setting_value = ? WHERE setting_key = 'business_name'")->execute([$businessName]);
-                $pdo->prepare("UPDATE ab_settings SET setting_value = ? WHERE setting_key = 'business_email'")->execute([$adminEmail]);
+                $settings = [
+                    'site_name' => $siteName,
+                    'company_name' => $companyName,
+                    'admin_email' => $adminEmail,
+                ];
+                foreach ($settings as $key => $value) {
+                    $pdo->prepare("UPDATE wp_settings SET setting_value = ? WHERE setting_key = ?")->execute([$value, $key]);
+                }
 
                 // Generate config file
                 $secretKey = bin2hex(random_bytes(32));
                 $configContent = "<?php\n"
-                    . "define('AB_DEBUG', false);\n"
-                    . "define('AB_BASE_URL', " . var_export($install['base_url'], true) . ");\n"
-                    . "define('AB_DB_HOST', " . var_export($install['db_host'], true) . ");\n"
-                    . "define('AB_DB_NAME', " . var_export($install['db_name'], true) . ");\n"
-                    . "define('AB_DB_USER', " . var_export($install['db_user'], true) . ");\n"
-                    . "define('AB_DB_PASS', " . var_export($install['db_pass'], true) . ");\n"
-                    . "define('AB_DB_PREFIX', 'ab_');\n"
-                    . "define('AB_DB_CHARSET', 'utf8mb4');\n"
-                    . "define('AB_SECRET_KEY', '$secretKey');\n"
-                    . "define('AB_TIMEZONE', 'Europe/Paris');\n"
-                    . "define('AB_SESSION_NAME', 'ab_session');\n"
-                    . "define('AB_SESSION_LIFETIME', 7200);\n"
-                    . "define('AB_UPLOAD_DIR', __DIR__ . '/../assets/uploads/');\n"
-                    . "define('AB_MAX_UPLOAD_SIZE', 5 * 1024 * 1024);\n";
+                    . "// WebPanel Configuration - Generated by installer\n"
+                    . "define('WP_DEBUG', false);\n"
+                    . "define('WP_BASE_URL', " . var_export($install['base_url'], true) . ");\n"
+                    . "define('WP_DB_HOST', " . var_export($install['db_host'], true) . ");\n"
+                    . "define('WP_DB_NAME', " . var_export($install['db_name'], true) . ");\n"
+                    . "define('WP_DB_USER', " . var_export($install['db_user'], true) . ");\n"
+                    . "define('WP_DB_PASS', " . var_export($install['db_pass'], true) . ");\n"
+                    . "define('WP_DB_PREFIX', 'wp_');\n"
+                    . "define('WP_DB_CHARSET', 'utf8mb4');\n"
+                    . "define('WP_SECRET_KEY', '$secretKey');\n"
+                    . "define('WP_TIMEZONE', 'Europe/Paris');\n"
+                    . "define('WP_SESSION_NAME', 'wp_session');\n"
+                    . "define('WP_SESSION_LIFETIME', 7200);\n"
+                    . "define('WP_UPLOAD_DIR', __DIR__ . '/../uploads/');\n"
+                    . "define('WP_MAX_UPLOAD_SIZE', 10 * 1024 * 1024);\n";
 
                 $configPath = __DIR__ . '/../config/config.php';
                 if (is_writable(dirname($configPath))) {
@@ -123,14 +131,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Check requirements for step 1
+// Requirements for step 1 display
 $checks = [
-    'PHP >= 8.0' => version_compare(PHP_VERSION, '8.0.0', '>='),
+    'PHP >= 8.1' => version_compare(PHP_VERSION, '8.1.0', '>='),
     'PDO MySQL' => extension_loaded('pdo_mysql'),
+    'cURL' => extension_loaded('curl'),
+    'OpenSSL' => extension_loaded('openssl'),
     'JSON' => extension_loaded('json'),
     'mbstring' => extension_loaded('mbstring'),
-    'openssl' => extension_loaded('openssl'),
-    'curl' => extension_loaded('curl'),
+    'config/ writable' => is_writable(__DIR__ . '/../config/'),
 ];
 ?>
 <!DOCTYPE html>
@@ -138,25 +147,25 @@ $checks = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installation - ABAppointments</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <title>Installation - WebPanel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
-        body { background: linear-gradient(135deg, #1a1a2e 0%, #e91e63 100%); min-height: 100vh; display: flex; align-items: center; }
-        .install-card { max-width: 600px; margin: auto; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
-        .install-header { background: #e91e63; color: #fff; padding: 25px; text-align: center; border-radius: 15px 15px 0 0; }
+        body { background: linear-gradient(135deg, #1e1b4b 0%, #4F46E5 100%); min-height: 100vh; display: flex; align-items: center; }
+        .install-card { max-width: 620px; margin: auto; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+        .install-header { background: #4F46E5; color: #fff; padding: 25px; text-align: center; border-radius: 16px 16px 0 0; }
         .step-bar { display: flex; gap: 5px; justify-content: center; margin-top: 10px; }
         .step-bar .dot { width: 30px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
         .step-bar .dot.active { background: #fff; }
-        .btn-install { background: #e91e63; border: none; }
-        .btn-install:hover { background: #c2185b; }
+        .btn-install { background: #4F46E5; border: none; color: #fff; }
+        .btn-install:hover { background: #4338CA; color: #fff; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="install-card card">
         <div class="install-header">
-            <h3><i class="bi bi-calendar-heart"></i> ABAppointments</h3>
+            <h3><i class="bi bi-hdd-rack me-2"></i>WebPanel</h3>
             <small>Assistant d'installation</small>
             <div class="step-bar">
                 <div class="dot <?= $step >= 1 ? 'active' : '' ?>"></div>
@@ -171,7 +180,8 @@ $checks = [
             <?php endif; ?>
 
             <?php if ($step === 1): ?>
-            <h5>Étape 1 : Vérification du système</h5>
+            <h5>Etape 1 : Verification du systeme</h5>
+            <p class="text-muted small">Verification des extensions PHP et permissions requises.</p>
             <table class="table">
                 <?php foreach ($checks as $name => $ok): ?>
                 <tr>
@@ -181,54 +191,73 @@ $checks = [
                 <?php endforeach; ?>
             </table>
             <form method="POST">
-                <button type="submit" class="btn btn-install text-white w-100" <?= in_array(false, $checks) ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-install w-100" <?= in_array(false, $checks) ? 'disabled' : '' ?>>
                     Continuer <i class="bi bi-arrow-right"></i>
                 </button>
             </form>
 
             <?php elseif ($step === 2): ?>
-            <h5>Étape 2 : Base de données</h5>
+            <h5>Etape 2 : Base de donnees</h5>
+            <p class="text-muted small">Configurez la connexion MySQL. La base sera creee automatiquement.</p>
             <form method="POST">
                 <div class="mb-3"><label class="form-label">Serveur MySQL</label><input type="text" name="db_host" class="form-control" value="localhost" required></div>
-                <div class="mb-3"><label class="form-label">Nom de la base</label><input type="text" name="db_name" class="form-control" value="ab_appointments" required></div>
+                <div class="mb-3"><label class="form-label">Nom de la base</label><input type="text" name="db_name" class="form-control" value="webpanel" required></div>
                 <div class="mb-3"><label class="form-label">Utilisateur MySQL</label><input type="text" name="db_user" class="form-control" value="root" required></div>
                 <div class="mb-3"><label class="form-label">Mot de passe MySQL</label><input type="password" name="db_pass" class="form-control"></div>
                 <div class="mb-3"><label class="form-label">URL du site (sans / final)</label><input type="url" name="base_url" class="form-control" value="<?= 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . dirname(dirname($_SERVER['SCRIPT_NAME'])) ?>" required></div>
-                <button type="submit" class="btn btn-install text-white w-100">Installer la base <i class="bi bi-arrow-right"></i></button>
+                <button type="submit" class="btn btn-install w-100">Installer la base <i class="bi bi-arrow-right"></i></button>
             </form>
 
             <?php elseif ($step === 3): ?>
-            <h5>Étape 3 : Configuration</h5>
+            <h5>Etape 3 : Configuration</h5>
             <form method="POST">
-                <div class="mb-3"><label class="form-label">Nom de votre entreprise</label><input type="text" name="business_name" class="form-control" value="Mon Salon d'Ongles" required></div>
+                <div class="mb-3"><label class="form-label">Nom du site</label><input type="text" name="site_name" class="form-control" value="WebPanel" required></div>
+                <div class="mb-3"><label class="form-label">Nom de l'entreprise</label><input type="text" name="company_name" class="form-control" required></div>
                 <hr>
                 <h6>Compte administrateur</h6>
-                <div class="mb-3"><label class="form-label">Prénom</label><input type="text" name="admin_first_name" class="form-control" required></div>
-                <div class="mb-3"><label class="form-label">Nom</label><input type="text" name="admin_last_name" class="form-control" required></div>
+                <div class="row">
+                    <div class="col-6 mb-3"><label class="form-label">Prenom</label><input type="text" name="admin_first_name" class="form-control" required></div>
+                    <div class="col-6 mb-3"><label class="form-label">Nom</label><input type="text" name="admin_last_name" class="form-control" required></div>
+                </div>
                 <div class="mb-3"><label class="form-label">Email</label><input type="email" name="admin_email" class="form-control" required></div>
-                <div class="mb-3"><label class="form-label">Mot de passe (min. 6 caractères)</label><input type="password" name="admin_password" class="form-control" required minlength="6"></div>
-                <button type="submit" class="btn btn-install text-white w-100">Finaliser <i class="bi bi-arrow-right"></i></button>
+                <div class="mb-3"><label class="form-label">Mot de passe (min. 8 caracteres)</label><input type="password" name="admin_password" class="form-control" required minlength="8"></div>
+                <button type="submit" class="btn btn-install w-100">Finaliser <i class="bi bi-arrow-right"></i></button>
             </form>
 
             <?php elseif ($step === 4): ?>
             <div class="text-center">
-                <div style="font-size: 3rem; color: #28a745;"><i class="bi bi-check-circle-fill"></i></div>
-                <h4 class="mt-2">Installation terminée !</h4>
-                <p class="text-muted">ABAppointments est prêt à l'emploi.</p>
+                <div style="font-size: 3rem; color: #22c55e;"><i class="bi bi-check-circle-fill"></i></div>
+                <h4 class="mt-2">Installation terminee !</h4>
+                <p class="text-muted">WebPanel est pret. Configurez les crons ci-dessous.</p>
 
                 <?php if (!($_SESSION['install']['config_written'] ?? true)): ?>
                 <div class="alert alert-warning text-start">
-                    <strong>Action requise :</strong> Le fichier de configuration n'a pas pu être écrit automatiquement.
+                    <strong>Action requise :</strong> Le fichier de configuration n'a pas pu etre ecrit automatiquement.
                     Copiez le contenu suivant dans <code>config/config.php</code> :
-                    <textarea class="form-control mt-2" rows="8" readonly><?= htmlspecialchars($_SESSION['install']['config_content'] ?? '') ?></textarea>
+                    <textarea class="form-control mt-2" rows="10" readonly><?= htmlspecialchars($_SESSION['install']['config_content'] ?? '') ?></textarea>
                 </div>
                 <?php endif; ?>
 
-                <div class="d-grid gap-2 mt-3">
-                    <a href="../admin/index.php?page=login" class="btn btn-install text-white"><i class="bi bi-box-arrow-in-right"></i> Accéder à l'administration</a>
-                    <a href="../public/" class="btn btn-outline-secondary"><i class="bi bi-calendar"></i> Voir la page de réservation</a>
+                <div class="alert alert-info text-start mt-3">
+                    <strong><i class="bi bi-clock me-1"></i>Taches cron a configurer :</strong>
+                    <pre class="mt-2 mb-0 small bg-dark text-light p-2 rounded"># Facturation (quotidien a 2h)
+0 2 * * * php <?= realpath(__DIR__) ?>/cron/billing.php
+
+# Rappels de paiement (quotidien a 9h)
+0 9 * * * php <?= realpath(__DIR__) ?>/cron/reminders.php
+
+# Suspension auto (quotidien a 6h)
+0 6 * * * php <?= realpath(__DIR__) ?>/cron/suspend.php
+
+# Sync monitoring (toutes les 5 min)
+*/5 * * * * php <?= realpath(__DIR__) ?>/cron/sync-monitoring.php</pre>
                 </div>
-                <p class="mt-3 text-muted small"><i class="bi bi-shield-exclamation"></i> Pensez à protéger le dossier <code>/install/</code> en production.</p>
+
+                <div class="d-grid gap-2 mt-3">
+                    <a href="../admin/?page=login" class="btn btn-install"><i class="bi bi-shield-lock me-1"></i>Administration</a>
+                    <a href="../client/?page=login" class="btn btn-outline-secondary"><i class="bi bi-person me-1"></i>Espace client</a>
+                </div>
+                <p class="mt-3 text-muted small"><i class="bi bi-shield-exclamation me-1"></i>Pensez a proteger ou supprimer le dossier <code>/install/</code> en production.</p>
             </div>
             <?php session_destroy(); ?>
             <?php endif; ?>
