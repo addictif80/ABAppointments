@@ -1,134 +1,89 @@
 <?php
-$currentPage = $pageContent;
-$userName = $_SESSION['user_name'] ?? 'Admin';
-$isAdmin = Auth::isAdmin();
-$primaryColor = ab_setting('primary_color', '#e91e63');
+$currentUser = Auth::user();
+$siteName = wp_setting('site_name', 'WebPanel');
+$primaryColor = wp_setting('primary_color', '#4F46E5');
+$pageTitle = $pageTitle ?? 'Administration';
+$db = Database::getInstance();
+
+$openTickets = $db->count('wp_tickets', "status NOT IN ('resolved','closed')");
+$overdueInvoices = $db->count('wp_invoices', "status = 'overdue'");
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= ab_escape(ab_setting('business_name', 'ABAppointments')) ?> - Administration</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <title><?= wp_escape($pageTitle) ?> - Admin <?= wp_escape($siteName) ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
-        :root { --ab-primary: <?= $primaryColor ?>; --ab-primary-dark: color-mix(in srgb, <?= $primaryColor ?> 80%, black); }
-        body { background: #f4f6f9; }
-        .sidebar { width: 260px; min-height: 100vh; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
-        .sidebar .brand { padding: 20px; color: #fff; font-size: 1.2rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .sidebar .nav-link { color: rgba(255,255,255,0.7); padding: 12px 20px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; border-left: 3px solid transparent; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.08); border-left-color: var(--ab-primary); }
-        .sidebar .nav-link i { width: 20px; text-align: center; }
+        :root { --primary: <?= wp_escape($primaryColor) ?>; }
+        body { background: #f0f2f5; min-height: 100vh; }
+        .sidebar { width: 260px; background: #1e1b4b; min-height: 100vh; position: fixed; left: 0; top: 0; z-index: 1000; overflow-y: auto; }
+        .sidebar .nav-link { color: rgba(255,255,255,.7); padding: .6rem 1.1rem; border-radius: .4rem; margin: 1px 10px; font-size: .85rem; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,.12); color: #fff; }
+        .sidebar .nav-link i { width: 22px; text-align: center; margin-right: 8px; }
+        .sidebar .section-label { color: rgba(255,255,255,.4); font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; padding: .5rem 1.2rem; margin-top: .5rem; }
         .main-content { margin-left: 260px; padding: 20px; }
-        .top-bar { background: #fff; padding: 15px 25px; margin: -20px -20px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center; }
-        .btn-primary { background: var(--ab-primary); border-color: var(--ab-primary); }
-        .btn-primary:hover { background: var(--ab-primary-dark); border-color: var(--ab-primary-dark); }
-        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-radius: 10px; }
-        .stat-card { border-left: 4px solid var(--ab-primary); }
-        .badge-pending { background: #ffc107; color: #000; }
-        .badge-confirmed { background: #28a745; }
-        .badge-cancelled { background: #dc3545; }
-        .badge-completed { background: #6c757d; }
-        .badge-no_show { background: #fd7e14; }
-        .badge-paid { background: #28a745; }
-        .badge-refunded { background: #17a2b8; }
-        .nav-section { padding: 15px 20px 5px; color: rgba(255,255,255,0.4); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
-        @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.show { transform: translateX(0); }
-            .main-content { margin-left: 0; }
-        }
+        .topbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 10px 20px; margin: -20px -20px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 20px; border: 1px solid #e5e7eb; }
+        .sidebar-brand { padding: 16px 18px; color: #fff; font-size: 1.15rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,.1); }
+        @media (max-width: 768px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
     </style>
 </head>
 <body>
-    <div class="sidebar" id="sidebar">
-        <div class="brand">
-            <i class="bi bi-calendar-heart"></i> <?= ab_escape(ab_setting('business_name', 'ABAppointments')) ?>
-        </div>
-        <nav>
-            <div class="nav-section">Principal</div>
-            <a href="<?= ab_url('admin/index.php?page=dashboard') ?>" class="nav-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
-                <i class="bi bi-speedometer2"></i> Tableau de bord
-            </a>
-            <a href="<?= ab_url('admin/index.php?page=appointments') ?>" class="nav-link <?= $currentPage === 'appointments' ? 'active' : '' ?>">
-                <i class="bi bi-calendar-check"></i> Rendez-vous
-            </a>
-            <a href="<?= ab_url('admin/index.php?page=customers') ?>" class="nav-link <?= $currentPage === 'customers' ? 'active' : '' ?>">
-                <i class="bi bi-people"></i> Clients
-            </a>
-            <a href="<?= ab_url('admin/index.php?page=deposits') ?>" class="nav-link <?= $currentPage === 'deposits' ? 'active' : '' ?>">
-                <i class="bi bi-cash-coin"></i> Acomptes
-            </a>
+<div class="sidebar">
+    <div class="sidebar-brand"><i class="bi bi-shield-lock me-2"></i> <?= wp_escape($siteName) ?> Admin</div>
+    <nav class="mt-2">
+        <a href="<?= wp_url('admin/?page=dashboard') ?>" class="nav-link <?= $page === 'dashboard' ? 'active' : '' ?>"><i class="bi bi-speedometer2"></i> Dashboard</a>
 
-            <div class="nav-section">Configuration</div>
-            <a href="<?= ab_url('admin/index.php?page=services') ?>" class="nav-link <?= $currentPage === 'services' ? 'active' : '' ?>">
-                <i class="bi bi-palette"></i> Prestations
-            </a>
-            <a href="<?= ab_url('admin/index.php?page=categories') ?>" class="nav-link <?= $currentPage === 'categories' ? 'active' : '' ?>">
-                <i class="bi bi-tags"></i> Catégories
-            </a>
-            <?php if ($isAdmin): ?>
-            <a href="<?= ab_url('admin/index.php?page=providers') ?>" class="nav-link <?= $currentPage === 'providers' ? 'active' : '' ?>">
-                <i class="bi bi-person-badge"></i> Prestataires
-            </a>
-            <?php endif; ?>
-            <a href="<?= ab_url('admin/index.php?page=working-hours') ?>" class="nav-link <?= $currentPage === 'working-hours' ? 'active' : '' ?>">
-                <i class="bi bi-clock"></i> Horaires
-            </a>
-            <a href="<?= ab_url('admin/index.php?page=holidays') ?>" class="nav-link <?= $currentPage === 'holidays' ? 'active' : '' ?>">
-                <i class="bi bi-calendar-x"></i> Congés
-            </a>
+        <div class="section-label">Clients</div>
+        <a href="<?= wp_url('admin/?page=clients') ?>" class="nav-link <?= in_array($page, ['clients','client-detail']) ? 'active' : '' ?>"><i class="bi bi-people"></i> Clients</a>
+        <a href="<?= wp_url('admin/?page=subscriptions') ?>" class="nav-link <?= in_array($page, ['subscriptions','subscription-detail']) ? 'active' : '' ?>"><i class="bi bi-collection"></i> Abonnements</a>
 
-            <?php if ($isAdmin): ?>
-            <div class="nav-section">Système</div>
-            <a href="<?= ab_url('admin/index.php?page=settings') ?>" class="nav-link <?= $currentPage === 'settings' ? 'active' : '' ?>">
-                <i class="bi bi-gear"></i> Paramètres
-            </a>
-            <a href="<?= ab_url('admin/index.php?page=email-templates') ?>" class="nav-link <?= $currentPage === 'email-templates' ? 'active' : '' ?>">
-                <i class="bi bi-envelope"></i> Emails
-            </a>
-            <?php endif; ?>
-        </nav>
+        <div class="section-label">Finances</div>
+        <a href="<?= wp_url('admin/?page=invoices') ?>" class="nav-link <?= in_array($page, ['invoices','invoice-detail']) ? 'active' : '' ?>"><i class="bi bi-receipt"></i> Factures <?php if ($overdueInvoices): ?><span class="badge bg-danger ms-auto"><?= $overdueInvoices ?></span><?php endif; ?></a>
+        <a href="<?= wp_url('admin/?page=payments') ?>" class="nav-link <?= $page === 'payments' ? 'active' : '' ?>"><i class="bi bi-credit-card"></i> Paiements</a>
+
+        <div class="section-label">Support</div>
+        <a href="<?= wp_url('admin/?page=tickets') ?>" class="nav-link <?= in_array($page, ['tickets','ticket-detail']) ? 'active' : '' ?>"><i class="bi bi-chat-left-text"></i> Tickets <?php if ($openTickets): ?><span class="badge bg-warning ms-auto"><?= $openTickets ?></span><?php endif; ?></a>
+
+        <div class="section-label">Infrastructure</div>
+        <a href="<?= wp_url('admin/?page=monitoring') ?>" class="nav-link <?= $page === 'monitoring' ? 'active' : '' ?>"><i class="bi bi-activity"></i> Monitoring</a>
+        <a href="<?= wp_url('admin/?page=incidents') ?>" class="nav-link <?= $page === 'incidents' ? 'active' : '' ?>"><i class="bi bi-exclamation-triangle"></i> Incidents</a>
+        <a href="<?= wp_url('admin/?page=ip-pool') ?>" class="nav-link <?= $page === 'ip-pool' ? 'active' : '' ?>"><i class="bi bi-hdd-network"></i> Pool IP</a>
+
+        <div class="section-label">Configuration</div>
+        <a href="<?= wp_url('admin/?page=products') ?>" class="nav-link <?= $page === 'products' ? 'active' : '' ?>"><i class="bi bi-box-seam"></i> Produits</a>
+        <a href="<?= wp_url('admin/?page=os-templates') ?>" class="nav-link <?= $page === 'os-templates' ? 'active' : '' ?>"><i class="bi bi-disc"></i> Templates OS</a>
+        <a href="<?= wp_url('admin/?page=email-templates') ?>" class="nav-link <?= $page === 'email-templates' ? 'active' : '' ?>"><i class="bi bi-envelope"></i> Emails</a>
+        <a href="<?= wp_url('admin/?page=settings') ?>" class="nav-link <?= $page === 'settings' ? 'active' : '' ?>"><i class="bi bi-gear"></i> Parametres</a>
+        <a href="<?= wp_url('admin/?page=activity-log') ?>" class="nav-link <?= $page === 'activity-log' ? 'active' : '' ?>"><i class="bi bi-clock-history"></i> Journal</a>
+
+        <hr style="border-color: rgba(255,255,255,.1); margin: 6px 16px;">
+        <a href="<?= wp_url('client/?page=dashboard') ?>" class="nav-link"><i class="bi bi-box-arrow-up-right"></i> Espace client</a>
+        <a href="<?= wp_url('admin/?page=logout') ?>" class="nav-link"><i class="bi bi-box-arrow-left"></i> Deconnexion</a>
+    </nav>
+</div>
+
+<div class="main-content">
+    <div class="topbar">
+        <span class="fw-semibold"><?= wp_escape($pageTitle) ?></span>
+        <span class="text-muted small"><?= wp_escape($currentUser['first_name'] . ' ' . $currentUser['last_name']) ?></span>
     </div>
 
-    <div class="main-content">
-        <div class="top-bar">
-            <button class="btn btn-sm btn-outline-secondary d-md-none" onclick="document.getElementById('sidebar').classList.toggle('show')">
-                <i class="bi bi-list"></i>
-            </button>
-            <div>
-                <a href="<?= ab_url('public/') ?>" target="_blank" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-box-arrow-up-right"></i> Voir la page de réservation
-                </a>
+    <?php foreach (['success', 'error', 'warning', 'info'] as $type): ?>
+        <?php foreach (wp_flash($type) as $msg): ?>
+            <div class="alert alert-<?= $type === 'error' ? 'danger' : $type ?> alert-dismissible fade show">
+                <?= wp_escape($msg) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                    <i class="bi bi-person-circle"></i> <?= ab_escape($userName) ?>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <li><a class="dropdown-item" href="<?= ab_url('admin/index.php?page=profile') ?>"><i class="bi bi-person"></i> Mon profil</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="<?= ab_url('admin/index.php?page=login&action=logout') ?>"><i class="bi bi-box-arrow-right"></i> Déconnexion</a></li>
-                </ul>
-            </div>
-        </div>
-
-        <?php foreach (ab_get_flash() as $flash): ?>
-        <div class="alert alert-<?= $flash['type'] === 'error' ? 'danger' : $flash['type'] ?> alert-dismissible fade show">
-            <?= $flash['message'] ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
         <?php endforeach; ?>
+    <?php endforeach; ?>
 
-        <?php require __DIR__ . '/pages/' . $currentPage . '.php'; ?>
-    </div>
+    <?php require $pageFile; ?>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-    <?php if (file_exists(__DIR__ . '/pages/' . $currentPage . '.js.php')): ?>
-        <?php require __DIR__ . '/pages/' . $currentPage . '.js.php'; ?>
-    <?php endif; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

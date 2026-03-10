@@ -1,73 +1,112 @@
 <?php
 /**
- * ABAppointments - Authentication
+ * WebPanel - Authentication
  */
 class Auth {
-    public static function login(string $email, string $password): ?array {
+    public static function login($email, $password) {
         $db = Database::getInstance();
-        $user = $db->fetchOne(
-            "SELECT * FROM ab_users WHERE email = ? AND is_active = 1",
-            [$email]
-        );
-
-        if ($user && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user_role'] = $user['role'];
-            $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            return $user;
+        $user = $db->fetchOne("SELECT * FROM wp_users WHERE email = ? AND status != 'banned'", [$email]);
+        if (!$user || !password_verify($password, $user['password'])) {
+            return false;
         }
-        return null;
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
+        $_SESSION['user_email'] = $user['email'];
+        $db->update('wp_users', ['last_login' => date('Y-m-d H:i:s')], 'id = ?', [$user['id']]);
+        wp_log_activity('login', 'user', $user['id']);
+        return $user;
     }
 
-    public static function logout(): void {
+    public static function logout() {
+        wp_log_activity('logout', 'user', $_SESSION['user_id'] ?? null);
         session_destroy();
-        $_SESSION = [];
     }
 
-    public static function check(): bool {
+    public static function check() {
         return isset($_SESSION['user_id']);
     }
 
-    public static function requireAuth(): void {
+    public static function user() {
+        if (!self::check()) return null;
+        $db = Database::getInstance();
+        return $db->fetchOne("SELECT * FROM wp_users WHERE id = ?", [$_SESSION['user_id']]);
+    }
+
+    public static function isAdmin() {
+        return ($_SESSION['user_role'] ?? '') === 'admin';
+    }
+
+    public static function requireAuth($redirect = null) {
         if (!self::check()) {
-            header('Location: ' . AB_BASE_URL . '/admin/index.php?page=login');
-            exit;
+            wp_redirect($redirect ?: wp_url('client/?page=login'));
         }
     }
 
-    public static function requireAdmin(): void {
-        self::requireAuth();
-        if ($_SESSION['user_role'] !== 'admin') {
-            http_response_code(403);
-            exit('Accès refusé');
+    public static function requireAdmin() {
+        if (!self::check() || !self::isAdmin()) {
+            wp_redirect(wp_url('admin/?page=login'));
         }
     }
 
-    public static function isAdmin(): bool {
-        return isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
-    }
-
-    public static function userId(): ?int {
-        return isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
-    }
-
-    public static function verifyCsrf(string $token): bool {
-        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
-    }
-
-    public static function csrfToken(): string {
-        if (!isset($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    public static function requireClient() {
+        if (!self::check()) {
+            wp_redirect(wp_url('client/?page=login'));
         }
-        return $_SESSION['csrf_token'];
+        if (self::isAdmin()) {
+            // Admin can also access client panel
+        }
     }
 
-    public static function csrfField(): string {
-        return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(self::csrfToken()) . '">';
+    public static function register($data) {
+        $db = Database::getInstance();
+        $existing = $db->fetchOne("SELECT id FROM wp_users WHERE email = ?", [$data['email']]);
+        if ($existing) return ['error' => 'Cet email est deja utilise.'];
+
+        $verifyToken = wp_generate_token();
+        $userId = $db->insert('wp_users', [
+            'email' => $data['email'],
+            'password' => password_hash($data['password'], PASSWORD_BCRYPT, ['cost' => 12]),
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'],
+            'company' => $data['company'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'role' => 'client',
+            'email_verify_token' => $verifyToken
+        ]);
+
+        wp_log_activity('register', 'user', $userId);
+        return ['success' => true, 'user_id' => $userId, 'verify_token' => $verifyToken];
     }
 
-    public static function hashPassword(string $password): string {
-        return password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+    public static function requestPasswordReset($email) {
+        $db = Database::getInstance();
+        $user = $db->fetchOne("SELECT id, first_name FROM wp_users WHERE email = ?", [$email]);
+        if (!$user) return true; // Don't reveal if email exists
+
+        $token = wp_generate_token();
+        $db->update('wp_users', [
+            'password_reset_token' => $token,
+            'password_reset_expires' => date('Y-m-d H:i:s', strtotime('+1 hour'))
+        ], 'id = ?', [$user['id']]);
+
+        return ['token' => $token, 'user' => $user];
+    }
+
+    public static function resetPassword($token, $newPassword) {
+        $db = Database::getInstance();
+        $user = $db->fetchOne(
+            "SELECT id FROM wp_users WHERE password_reset_token = ? AND password_reset_expires > NOW()",
+            [$token]
+        );
+        if (!$user) return false;
+
+        $db->update('wp_users', [
+            'password' => password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]),
+            'password_reset_token' => null,
+            'password_reset_expires' => null
+        ], 'id = ?', [$user['id']]);
+
+        return true;
     }
 }

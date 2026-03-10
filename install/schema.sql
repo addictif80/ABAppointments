@@ -1,349 +1,462 @@
--- ABAppointments Database Schema
--- Système de prise de rendez-vous pour prestations ongulaires
+-- WebPanel - Client Subscription Panel
+-- Database Schema
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- --------------------------------------------------------
--- Table: settings (paramètres généraux)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_settings` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `setting_key` VARCHAR(100) NOT NULL UNIQUE,
-  `setting_value` TEXT,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- ============================================
+-- USERS & AUTHENTICATION
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_users` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `email` VARCHAR(255) NOT NULL UNIQUE,
+    `password` VARCHAR(255) NOT NULL,
+    `first_name` VARCHAR(100) NOT NULL,
+    `last_name` VARCHAR(100) NOT NULL,
+    `company` VARCHAR(255) DEFAULT NULL,
+    `phone` VARCHAR(30) DEFAULT NULL,
+    `address` TEXT DEFAULT NULL,
+    `city` VARCHAR(100) DEFAULT NULL,
+    `postal_code` VARCHAR(20) DEFAULT NULL,
+    `country` VARCHAR(100) DEFAULT 'France',
+    `role` ENUM('admin','client') NOT NULL DEFAULT 'client',
+    `status` ENUM('active','suspended','banned') NOT NULL DEFAULT 'active',
+    `email_verified` TINYINT(1) NOT NULL DEFAULT 0,
+    `email_verify_token` VARCHAR(64) DEFAULT NULL,
+    `password_reset_token` VARCHAR(64) DEFAULT NULL,
+    `password_reset_expires` DATETIME DEFAULT NULL,
+    `stripe_customer_id` VARCHAR(255) DEFAULT NULL,
+    `last_login` DATETIME DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_role` (`role`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_stripe` (`stripe_customer_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: users (administrateurs / prestataires)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_users` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `first_name` VARCHAR(100) NOT NULL,
-  `last_name` VARCHAR(100) NOT NULL,
-  `email` VARCHAR(255) NOT NULL UNIQUE,
-  `password` VARCHAR(255) NOT NULL,
-  `phone` VARCHAR(30) DEFAULT NULL,
-  `role` ENUM('admin', 'provider') NOT NULL DEFAULT 'provider',
-  `avatar` VARCHAR(255) DEFAULT NULL,
-  `timezone` VARCHAR(50) DEFAULT 'Europe/Paris',
-  `notes` TEXT,
-  `is_active` TINYINT(1) DEFAULT 1,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- ============================================
+-- PRODUCTS & PLANS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_products` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `type` ENUM('vps','hosting','navidrome') NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `slug` VARCHAR(255) NOT NULL UNIQUE,
+    `description` TEXT DEFAULT NULL,
+    `features` JSON DEFAULT NULL,
+    `price_monthly` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `price_yearly` DECIMAL(10,2) DEFAULT NULL,
+    `setup_fee` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `proxmox_cores` INT DEFAULT NULL,
+    `proxmox_ram_mb` INT DEFAULT NULL,
+    `proxmox_disk_gb` INT DEFAULT NULL,
+    `proxmox_bandwidth_gb` INT DEFAULT NULL,
+    `proxmox_template` VARCHAR(255) DEFAULT NULL,
+    `proxmox_pool` VARCHAR(100) DEFAULT NULL,
+    `proxmox_storage` VARCHAR(100) DEFAULT NULL,
+    `proxmox_bridge` VARCHAR(50) DEFAULT NULL,
+    `hosting_disk_mb` INT DEFAULT NULL,
+    `hosting_bandwidth_mb` INT DEFAULT NULL,
+    `hosting_email_accounts` INT DEFAULT NULL,
+    `hosting_databases` INT DEFAULT NULL,
+    `hosting_domains` INT DEFAULT NULL,
+    `hosting_package` VARCHAR(255) DEFAULT NULL,
+    `navidrome_storage_mb` INT DEFAULT NULL,
+    `navidrome_max_playlists` INT DEFAULT NULL,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `stock` INT DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_type` (`type`),
+    INDEX `idx_active` (`is_active`),
+    INDEX `idx_sort` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: service_categories
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_service_categories` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `name` VARCHAR(150) NOT NULL,
-  `description` TEXT,
-  `sort_order` INT DEFAULT 0,
-  `is_active` TINYINT(1) DEFAULT 1,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS `wp_os_templates` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL,
+    `slug` VARCHAR(255) NOT NULL UNIQUE,
+    `proxmox_template` VARCHAR(255) NOT NULL,
+    `icon` VARCHAR(100) DEFAULT NULL,
+    `category` VARCHAR(50) DEFAULT 'linux',
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: services (prestations)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_services` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `category_id` INT UNSIGNED DEFAULT NULL,
-  `name` VARCHAR(200) NOT NULL,
-  `description` TEXT,
-  `duration` INT NOT NULL COMMENT 'Durée en minutes',
-  `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  `currency` VARCHAR(3) DEFAULT 'EUR',
-  `color` VARCHAR(7) DEFAULT '#e91e63',
-  `deposit_enabled` TINYINT(1) DEFAULT 0 COMMENT 'Acompte requis',
-  `deposit_type` ENUM('fixed', 'percentage') DEFAULT 'percentage',
-  `deposit_amount` DECIMAL(10,2) DEFAULT 0.00 COMMENT 'Montant ou pourcentage acompte',
-  `buffer_before` INT DEFAULT 0 COMMENT 'Temps tampon avant (minutes)',
-  `buffer_after` INT DEFAULT 0 COMMENT 'Temps tampon après (minutes)',
-  `max_attendees` INT DEFAULT 1,
-  `sort_order` INT DEFAULT 0,
-  `is_active` TINYINT(1) DEFAULT 1,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`category_id`) REFERENCES `ab_service_categories`(`id`) ON DELETE SET NULL
+-- ============================================
+-- SUBSCRIPTIONS & SERVICES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_subscriptions` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT UNSIGNED NOT NULL,
+    `product_id` INT UNSIGNED NOT NULL,
+    `status` ENUM('pending','active','suspended','cancelled','expired') NOT NULL DEFAULT 'pending',
+    `billing_cycle` ENUM('monthly','yearly') NOT NULL DEFAULT 'monthly',
+    `price` DECIMAL(10,2) NOT NULL,
+    `next_due_date` DATE NOT NULL,
+    `started_at` DATETIME DEFAULT NULL,
+    `suspended_at` DATETIME DEFAULT NULL,
+    `cancelled_at` DATETIME DEFAULT NULL,
+    `expires_at` DATETIME DEFAULT NULL,
+    `suspension_reason` VARCHAR(255) DEFAULT NULL,
+    `auto_renew` TINYINT(1) NOT NULL DEFAULT 1,
+    `stripe_subscription_id` VARCHAR(255) DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_product` (`product_id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_due` (`next_due_date`),
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`product_id`) REFERENCES `wp_products`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: provider_services (liaison prestataire-service)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_provider_services` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `provider_id` INT UNSIGNED NOT NULL,
-  `service_id` INT UNSIGNED NOT NULL,
-  UNIQUE KEY `provider_service` (`provider_id`, `service_id`),
-  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`service_id`) REFERENCES `ab_services`(`id`) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS `wp_services_vps` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `subscription_id` INT UNSIGNED NOT NULL UNIQUE,
+    `hostname` VARCHAR(255) NOT NULL,
+    `proxmox_vmid` INT DEFAULT NULL,
+    `proxmox_node` VARCHAR(100) DEFAULT NULL,
+    `ip_address` VARCHAR(45) DEFAULT NULL,
+    `ipv6_address` VARCHAR(45) DEFAULT NULL,
+    `os_template_id` INT UNSIGNED DEFAULT NULL,
+    `root_password` TEXT DEFAULT NULL,
+    `ssh_keys` TEXT DEFAULT NULL,
+    `status` ENUM('creating','running','stopped','suspended','error','reinstalling') NOT NULL DEFAULT 'creating',
+    `cores` INT NOT NULL,
+    `ram_mb` INT NOT NULL,
+    `disk_gb` INT NOT NULL,
+    `bandwidth_gb` INT DEFAULT NULL,
+    `bandwidth_used_gb` DECIMAL(10,2) DEFAULT 0.00,
+    `last_status_check` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_vmid` (`proxmox_vmid`),
+    INDEX `idx_status` (`status`),
+    FOREIGN KEY (`subscription_id`) REFERENCES `wp_subscriptions`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`os_template_id`) REFERENCES `wp_os_templates`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: working_hours (horaires de travail)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_working_hours` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `provider_id` INT UNSIGNED NOT NULL,
-  `day_of_week` TINYINT NOT NULL COMMENT '0=Dimanche, 1=Lundi...6=Samedi',
-  `start_time` TIME NOT NULL,
-  `end_time` TIME NOT NULL,
-  `break_start` TIME DEFAULT NULL,
-  `break_end` TIME DEFAULT NULL,
-  `is_active` TINYINT(1) DEFAULT 1,
-  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS `wp_services_hosting` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `subscription_id` INT UNSIGNED NOT NULL UNIQUE,
+    `domain` VARCHAR(255) NOT NULL,
+    `cyberpanel_username` VARCHAR(100) DEFAULT NULL,
+    `cyberpanel_password` TEXT DEFAULT NULL,
+    `cyberpanel_package` VARCHAR(255) DEFAULT NULL,
+    `nameserver1` VARCHAR(255) DEFAULT NULL,
+    `nameserver2` VARCHAR(255) DEFAULT NULL,
+    `disk_mb` INT NOT NULL,
+    `disk_used_mb` INT DEFAULT 0,
+    `bandwidth_mb` INT NOT NULL,
+    `bandwidth_used_mb` INT DEFAULT 0,
+    `email_accounts` INT NOT NULL DEFAULT 5,
+    `databases` INT NOT NULL DEFAULT 3,
+    `ssl_active` TINYINT(1) NOT NULL DEFAULT 0,
+    `php_version` VARCHAR(10) DEFAULT '8.2',
+    `status` ENUM('creating','active','suspended','error') NOT NULL DEFAULT 'creating',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`subscription_id`) REFERENCES `wp_subscriptions`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: breaks (pauses additionnelles)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_breaks` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `provider_id` INT UNSIGNED NOT NULL,
-  `day_of_week` TINYINT NOT NULL,
-  `start_time` TIME NOT NULL,
-  `end_time` TIME NOT NULL,
-  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS `wp_services_navidrome` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `subscription_id` INT UNSIGNED NOT NULL UNIQUE,
+    `navidrome_username` VARCHAR(100) DEFAULT NULL,
+    `navidrome_password` TEXT DEFAULT NULL,
+    `navidrome_user_id` VARCHAR(255) DEFAULT NULL,
+    `storage_mb` INT NOT NULL,
+    `storage_used_mb` INT DEFAULT 0,
+    `max_playlists` INT DEFAULT NULL,
+    `status` ENUM('creating','active','suspended','error') NOT NULL DEFAULT 'creating',
+    `last_login` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`subscription_id`) REFERENCES `wp_subscriptions`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: holidays (jours fériés / congés)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_holidays` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `provider_id` INT UNSIGNED DEFAULT NULL COMMENT 'NULL = tous les prestataires',
-  `title` VARCHAR(200) NOT NULL,
-  `date_start` DATE NOT NULL,
-  `date_end` DATE NOT NULL,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+-- ============================================
+-- INVOICES & PAYMENTS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_invoices` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `invoice_number` VARCHAR(50) NOT NULL UNIQUE,
+    `user_id` INT UNSIGNED NOT NULL,
+    `subscription_id` INT UNSIGNED DEFAULT NULL,
+    `status` ENUM('draft','pending','paid','overdue','cancelled','refunded') NOT NULL DEFAULT 'draft',
+    `subtotal` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `tax_rate` DECIMAL(5,2) NOT NULL DEFAULT 20.00,
+    `tax_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `total` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `currency` VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    `due_date` DATE NOT NULL,
+    `paid_at` DATETIME DEFAULT NULL,
+    `payment_method` VARCHAR(50) DEFAULT NULL,
+    `stripe_payment_intent_id` VARCHAR(255) DEFAULT NULL,
+    `stripe_invoice_id` VARCHAR(255) DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `reminder_sent` INT NOT NULL DEFAULT 0,
+    `last_reminder_at` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_subscription` (`subscription_id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_due` (`due_date`),
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`subscription_id`) REFERENCES `wp_subscriptions`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: customers (clients)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_customers` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `first_name` VARCHAR(100) NOT NULL,
-  `last_name` VARCHAR(100) NOT NULL,
-  `email` VARCHAR(255) NOT NULL,
-  `phone` VARCHAR(30) DEFAULT NULL,
-  `address` TEXT,
-  `city` VARCHAR(100) DEFAULT NULL,
-  `zip_code` VARCHAR(10) DEFAULT NULL,
-  `notes` TEXT,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY `customer_email` (`email`)
+CREATE TABLE IF NOT EXISTS `wp_invoice_items` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `invoice_id` INT UNSIGNED NOT NULL,
+    `description` VARCHAR(500) NOT NULL,
+    `quantity` INT NOT NULL DEFAULT 1,
+    `unit_price` DECIMAL(10,2) NOT NULL,
+    `total` DECIMAL(10,2) NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`invoice_id`) REFERENCES `wp_invoices`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: appointments (rendez-vous)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_appointments` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `hash` VARCHAR(64) NOT NULL UNIQUE COMMENT 'Identifiant unique pour liens publics',
-  `customer_id` INT UNSIGNED NOT NULL,
-  `provider_id` INT UNSIGNED NOT NULL,
-  `service_id` INT UNSIGNED NOT NULL,
-  `start_datetime` DATETIME NOT NULL,
-  `end_datetime` DATETIME NOT NULL,
-  `status` ENUM('pending', 'confirmed', 'cancelled', 'completed', 'no_show') DEFAULT 'pending',
-  `notes` TEXT,
-  `admin_notes` TEXT,
-  `color` VARCHAR(7) DEFAULT NULL,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`customer_id`) REFERENCES `ab_customers`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`service_id`) REFERENCES `ab_services`(`id`) ON DELETE CASCADE,
-  INDEX `idx_start` (`start_datetime`),
-  INDEX `idx_provider_date` (`provider_id`, `start_datetime`)
+CREATE TABLE IF NOT EXISTS `wp_payments` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `invoice_id` INT UNSIGNED DEFAULT NULL,
+    `user_id` INT UNSIGNED NOT NULL,
+    `amount` DECIMAL(10,2) NOT NULL,
+    `currency` VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    `method` ENUM('stripe','bank_transfer','manual') NOT NULL DEFAULT 'stripe',
+    `status` ENUM('pending','completed','failed','refunded') NOT NULL DEFAULT 'pending',
+    `stripe_payment_intent_id` VARCHAR(255) DEFAULT NULL,
+    `stripe_charge_id` VARCHAR(255) DEFAULT NULL,
+    `transaction_id` VARCHAR(255) DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_invoice` (`invoice_id`),
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_status` (`status`),
+    FOREIGN KEY (`invoice_id`) REFERENCES `wp_invoices`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: deposits (acomptes)
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_deposits` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `appointment_id` INT UNSIGNED NOT NULL,
-  `amount` DECIMAL(10,2) NOT NULL,
-  `currency` VARCHAR(3) DEFAULT 'EUR',
-  `payment_method` ENUM('bank_transfer', 'card', 'cash', 'paypal', 'stripe', 'other') DEFAULT 'bank_transfer',
-  `payment_reference` VARCHAR(255) DEFAULT NULL,
-  `status` ENUM('pending', 'paid', 'refunded', 'cancelled') DEFAULT 'pending',
-  `due_date` DATETIME DEFAULT NULL,
-  `paid_at` DATETIME DEFAULT NULL,
-  `notes` TEXT,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`appointment_id`) REFERENCES `ab_appointments`(`id`) ON DELETE CASCADE
+-- ============================================
+-- SUPPORT TICKETS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_tickets` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `ticket_number` VARCHAR(20) NOT NULL UNIQUE,
+    `user_id` INT UNSIGNED NOT NULL,
+    `subscription_id` INT UNSIGNED DEFAULT NULL,
+    `department` ENUM('technical','billing','sales','other') NOT NULL DEFAULT 'technical',
+    `priority` ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+    `subject` VARCHAR(255) NOT NULL,
+    `status` ENUM('open','in_progress','waiting_client','waiting_admin','resolved','closed') NOT NULL DEFAULT 'open',
+    `assigned_to` INT UNSIGNED DEFAULT NULL,
+    `closed_at` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_priority` (`priority`),
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`subscription_id`) REFERENCES `wp_subscriptions`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`assigned_to`) REFERENCES `wp_users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: email_templates
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_email_templates` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `slug` VARCHAR(100) NOT NULL UNIQUE,
-  `name` VARCHAR(200) NOT NULL,
-  `subject` VARCHAR(255) NOT NULL,
-  `body` TEXT NOT NULL,
-  `variables` TEXT COMMENT 'Variables disponibles (JSON)',
-  `is_active` TINYINT(1) DEFAULT 1,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS `wp_ticket_messages` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `ticket_id` INT UNSIGNED NOT NULL,
+    `user_id` INT UNSIGNED NOT NULL,
+    `message` TEXT NOT NULL,
+    `is_admin_reply` TINYINT(1) NOT NULL DEFAULT 0,
+    `attachments` JSON DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_ticket` (`ticket_id`),
+    FOREIGN KEY (`ticket_id`) REFERENCES `wp_tickets`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Table: google_calendar_sync
--- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ab_google_sync` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `provider_id` INT UNSIGNED NOT NULL,
-  `google_calendar_id` VARCHAR(255) DEFAULT NULL,
-  `access_token` TEXT,
-  `refresh_token` TEXT,
-  `token_expiry` DATETIME DEFAULT NULL,
-  `sync_enabled` TINYINT(1) DEFAULT 0,
-  `last_sync` DATETIME DEFAULT NULL,
-  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+-- ============================================
+-- ACTIVITY LOG
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_activity_log` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT UNSIGNED DEFAULT NULL,
+    `action` VARCHAR(100) NOT NULL,
+    `entity_type` VARCHAR(50) DEFAULT NULL,
+    `entity_id` INT UNSIGNED DEFAULT NULL,
+    `details` JSON DEFAULT NULL,
+    `ip_address` VARCHAR(45) DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_user` (`user_id`),
+    INDEX `idx_action` (`action`),
+    INDEX `idx_entity` (`entity_type`, `entity_id`),
+    INDEX `idx_created` (`created_at`),
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Données par défaut
--- --------------------------------------------------------
+-- ============================================
+-- EMAIL TEMPLATES
+-- ============================================
 
--- Paramètres par défaut
-INSERT INTO `ab_settings` (`setting_key`, `setting_value`) VALUES
-('business_name', 'Mon Salon d\'Ongles'),
-('business_email', 'contact@monsalon.fr'),
-('business_phone', ''),
-('business_address', ''),
-('business_logo', ''),
-('timezone', 'Europe/Paris'),
-('date_format', 'd/m/Y'),
-('time_format', 'H:i'),
-('slot_interval', '15'),
-('booking_advance_min', '60'),
-('booking_advance_max', '43200'),
-('cancellation_limit', '1440'),
-('require_phone', '1'),
-('allow_customer_cancel', '1'),
-('auto_confirm', '0'),
+CREATE TABLE IF NOT EXISTS `wp_email_templates` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `slug` VARCHAR(100) NOT NULL UNIQUE,
+    `name` VARCHAR(255) NOT NULL,
+    `subject` VARCHAR(255) NOT NULL,
+    `body_html` TEXT NOT NULL,
+    `variables` JSON DEFAULT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- SETTINGS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_settings` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+    `setting_value` TEXT DEFAULT NULL,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- IP POOL
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_ip_pool` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `ip_address` VARCHAR(45) NOT NULL UNIQUE,
+    `type` ENUM('ipv4','ipv6') NOT NULL DEFAULT 'ipv4',
+    `gateway` VARCHAR(45) DEFAULT NULL,
+    `netmask` VARCHAR(45) DEFAULT NULL,
+    `is_assigned` TINYINT(1) NOT NULL DEFAULT 0,
+    `assigned_to_vps_id` INT UNSIGNED DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_available` (`is_assigned`, `type`),
+    FOREIGN KEY (`assigned_to_vps_id`) REFERENCES `wp_services_vps`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- MONITORING
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_monitors` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `kuma_monitor_id` INT DEFAULT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `type` VARCHAR(50) NOT NULL DEFAULT 'http',
+    `url` VARCHAR(500) DEFAULT NULL,
+    `related_product_type` ENUM('vps','hosting','navidrome','infrastructure') DEFAULT 'infrastructure',
+    `status` ENUM('up','down','pending','maintenance') NOT NULL DEFAULT 'pending',
+    `uptime_24h` DECIMAL(5,2) DEFAULT NULL,
+    `uptime_30d` DECIMAL(5,2) DEFAULT NULL,
+    `last_check` DATETIME DEFAULT NULL,
+    `is_public` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wp_incidents` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `monitor_id` INT UNSIGNED DEFAULT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `description` TEXT DEFAULT NULL,
+    `severity` ENUM('minor','major','critical') NOT NULL DEFAULT 'minor',
+    `status` ENUM('investigating','identified','monitoring','resolved') NOT NULL DEFAULT 'investigating',
+    `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `resolved_at` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_status` (`status`),
+    FOREIGN KEY (`monitor_id`) REFERENCES `wp_monitors`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- DEFAULT DATA
+-- ============================================
+
+INSERT INTO `wp_settings` (`setting_key`, `setting_value`) VALUES
+('site_name', 'WebPanel'),
+('site_url', 'http://localhost'),
+('company_name', 'My Company'),
+('company_email', 'contact@example.com'),
+('company_phone', ''),
+('company_address', ''),
+('company_siret', ''),
+('company_tva', ''),
 ('currency', 'EUR'),
 ('currency_symbol', '€'),
-('deposit_instructions', 'Veuillez effectuer votre virement sur le compte suivant :\nIBAN: XXXX XXXX XXXX XXXX\nBIC: XXXXXXXX\nRéférence: Votre numéro de réservation'),
+('tax_rate', '20'),
+('invoice_prefix', 'INV-'),
+('invoice_next_number', '1'),
+('stripe_public_key', ''),
+('stripe_secret_key', ''),
+('stripe_webhook_secret', ''),
+('proxmox_host', ''),
+('proxmox_port', '8006'),
+('proxmox_user', 'root@pam'),
+('proxmox_token_id', ''),
+('proxmox_token_secret', ''),
+('proxmox_default_node', 'pve'),
+('proxmox_default_storage', 'local-lvm'),
+('proxmox_default_bridge', 'vmbr0'),
+('proxmox_vmid_start', '200'),
+('cyberpanel_url', ''),
+('cyberpanel_admin_user', 'admin'),
+('cyberpanel_admin_pass', ''),
+('navidrome_url', ''),
+('navidrome_admin_user', ''),
+('navidrome_admin_pass', ''),
+('uptime_kuma_url', ''),
+('uptime_kuma_api_key', ''),
 ('smtp_host', ''),
 ('smtp_port', '587'),
+('smtp_user', ''),
+('smtp_pass', ''),
 ('smtp_encryption', 'tls'),
-('smtp_username', ''),
-('smtp_password', ''),
 ('smtp_from_email', ''),
-('smtp_from_name', ''),
-('google_client_id', ''),
-('google_client_secret', ''),
-('google_redirect_uri', ''),
-('primary_color', '#e91e63'),
-('secondary_color', '#9c27b0'),
-('embed_enabled', '1');
+('smtp_from_name', 'WebPanel'),
+('payment_grace_days', '7'),
+('suspension_grace_days', '14'),
+('deletion_grace_days', '30'),
+('reminder_days_before', '3'),
+('primary_color', '#4F46E5'),
+('logo_url', ''),
+('terms_url', ''),
+('privacy_url', ''),
+('maintenance_mode', '0');
 
--- Templates email par défaut
-INSERT INTO `ab_email_templates` (`slug`, `name`, `subject`, `body`, `variables`) VALUES
-('appointment_confirmed', 'Confirmation de rendez-vous', 'Confirmation de votre rendez-vous - {business_name}',
-'<h2>Bonjour {customer_name},</h2>
-<p>Votre rendez-vous a été confirmé !</p>
-<table style="border-collapse:collapse;width:100%;max-width:500px;">
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Durée</td><td style="padding:8px;border:1px solid #ddd;">{service_duration} min</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prix</td><td style="padding:8px;border:1px solid #ddd;">{service_price} €</td></tr>
-</table>
-{deposit_section}
-<p>Pour annuler ou modifier votre rendez-vous :<br><a href="{manage_url}">Gérer mon rendez-vous</a></p>
-<p>Cordialement,<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","service_duration","service_price","deposit_section","manage_url","business_name"]'),
+INSERT INTO `wp_email_templates` (`slug`, `name`, `subject`, `body_html`, `variables`) VALUES
+('welcome', 'Bienvenue', 'Bienvenue sur {{site_name}}', '<h2>Bienvenue {{first_name}} !</h2><p>Votre compte a bien ete cree sur {{site_name}}.</p><p><a href="{{login_url}}">Acceder a mon espace</a></p>', '["first_name","last_name","email","site_name","login_url"]'),
+('email_verification', 'Verification email', 'Verifiez votre adresse email', '<h2>Bonjour {{first_name}},</h2><p>Veuillez verifier votre adresse email :</p><p><a href="{{verify_url}}">Verifier mon email</a></p>', '["first_name","verify_url","site_name"]'),
+('password_reset', 'Reinitialisation mot de passe', 'Reinitialisation de votre mot de passe', '<h2>Bonjour {{first_name}},</h2><p>Cliquez sur le lien ci-dessous pour reinitialiser votre mot de passe :</p><p><a href="{{reset_url}}">Reinitialiser</a></p><p>Ce lien expire dans 1 heure.</p>', '["first_name","reset_url","site_name"]'),
+('invoice_created', 'Nouvelle facture', 'Facture {{invoice_number}} - {{site_name}}', '<h2>Bonjour {{first_name}},</h2><p>Facture : {{invoice_number}}</p><p>Montant : {{total}} {{currency}}</p><p>Echeance : {{due_date}}</p><p><a href="{{invoice_url}}">Voir et payer</a></p>', '["first_name","invoice_number","total","currency","due_date","invoice_url","site_name"]'),
+('invoice_paid', 'Paiement confirme', 'Paiement confirme - Facture {{invoice_number}}', '<h2>Bonjour {{first_name}},</h2><p>Paiement recu pour la facture {{invoice_number}}.</p><p>Montant : {{total}} {{currency}}</p>', '["first_name","invoice_number","total","currency","site_name"]'),
+('payment_reminder', 'Rappel de paiement', 'Rappel : Facture {{invoice_number}} en attente', '<h2>Bonjour {{first_name}},</h2><p>La facture {{invoice_number}} de {{total}} {{currency}} est en attente.</p><p>Echeance : {{due_date}}</p><p><a href="{{invoice_url}}">Payer maintenant</a></p>', '["first_name","invoice_number","total","currency","due_date","invoice_url","site_name"]'),
+('service_suspended', 'Service suspendu', 'Votre service a ete suspendu', '<h2>Bonjour {{first_name}},</h2><p>Votre service <strong>{{service_name}}</strong> a ete suspendu pour impaye.</p><p><a href="{{invoice_url}}">Regulariser</a></p>', '["first_name","service_name","invoice_url","site_name"]'),
+('service_terminated', 'Service supprime', 'Votre service a ete supprime', '<h2>Bonjour {{first_name}},</h2><p>Votre service <strong>{{service_name}}</strong> a ete supprime suite au non-paiement.</p>', '["first_name","service_name","site_name"]'),
+('service_created', 'Service active', 'Votre service {{service_name}} est pret !', '<h2>Bonjour {{first_name}},</h2><p>Votre service <strong>{{service_name}}</strong> est actif.</p><p>{{service_details}}</p><p><a href="{{dashboard_url}}">Mon espace client</a></p>', '["first_name","service_name","service_details","dashboard_url","site_name"]'),
+('ticket_reply', 'Reponse ticket', 'Reponse a votre ticket #{{ticket_number}}', '<h2>Bonjour {{first_name}},</h2><p>Nouvelle reponse sur le ticket #{{ticket_number}} :</p><p>{{message}}</p><p><a href="{{ticket_url}}">Voir le ticket</a></p>', '["first_name","ticket_number","subject","message","ticket_url","site_name"]');
 
-('appointment_pending', 'Rendez-vous en attente', 'Votre demande de rendez-vous - {business_name}',
-'<h2>Bonjour {customer_name},</h2>
-<p>Votre demande de rendez-vous a bien été enregistrée et est en attente de confirmation.</p>
-<table style="border-collapse:collapse;width:100%;max-width:500px;">
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
-</table>
-{deposit_section}
-<p>Vous recevrez un email de confirmation prochainement.</p>
-<p>Cordialement,<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","deposit_section","business_name"]'),
-
-('appointment_cancelled', 'Annulation de rendez-vous', 'Annulation de votre rendez-vous - {business_name}',
-'<h2>Bonjour {customer_name},</h2>
-<p>Votre rendez-vous du {appointment_date} à {appointment_time} pour la prestation "{service_name}" a été annulé.</p>
-<p>Si vous souhaitez reprendre rendez-vous, n''hésitez pas à consulter notre agenda en ligne.</p>
-<p>Cordialement,<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","business_name"]'),
-
-('deposit_required', 'Acompte requis', 'Acompte requis pour votre rendez-vous - {business_name}',
-'<h2>Bonjour {customer_name},</h2>
-<p>Un acompte de <strong>{deposit_amount} €</strong> est requis pour confirmer votre rendez-vous :</p>
-<table style="border-collapse:collapse;width:100%;max-width:500px;">
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Montant acompte</td><td style="padding:8px;border:1px solid #ddd;">{deposit_amount} €</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date limite</td><td style="padding:8px;border:1px solid #ddd;">{deposit_due_date}</td></tr>
-</table>
-<h3>Instructions de paiement :</h3>
-<p>{deposit_instructions}</p>
-<p>Cordialement,<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","deposit_amount","deposit_due_date","deposit_instructions","business_name"]'),
-
-('deposit_confirmed', 'Acompte reçu', 'Acompte reçu - {business_name}',
-'<h2>Bonjour {customer_name},</h2>
-<p>Nous confirmons la réception de votre acompte de <strong>{deposit_amount} €</strong>.</p>
-<p>Votre rendez-vous est maintenant confirmé :</p>
-<table style="border-collapse:collapse;width:100%;max-width:500px;">
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Reste à payer</td><td style="padding:8px;border:1px solid #ddd;">{remaining_amount} €</td></tr>
-</table>
-<p>Cordialement,<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","deposit_amount","remaining_amount","business_name"]'),
-
-('admin_new_appointment', 'Nouveau rendez-vous (admin)', 'Nouveau rendez-vous - {customer_name}',
-'<h2>Nouveau rendez-vous</h2>
-<p>Un nouveau rendez-vous a été pris :</p>
-<table style="border-collapse:collapse;width:100%;max-width:500px;">
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Client</td><td style="padding:8px;border:1px solid #ddd;">{customer_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Email</td><td style="padding:8px;border:1px solid #ddd;">{customer_email}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Téléphone</td><td style="padding:8px;border:1px solid #ddd;">{customer_phone}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
-</table>
-<p><a href="{admin_url}">Voir dans l''administration</a></p>',
-'["customer_name","customer_email","customer_phone","service_name","appointment_date","appointment_time","admin_url"]'),
-
-('appointment_reminder', 'Rappel de rendez-vous', 'Rappel : votre rendez-vous demain - {business_name}',
-'<h2>Bonjour {customer_name},</h2>
-<p>Nous vous rappelons votre rendez-vous prévu demain :</p>
-<table style="border-collapse:collapse;width:100%;max-width:500px;">
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
-<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
-</table>
-<p>Pour annuler ou modifier :<br><a href="{manage_url}">Gérer mon rendez-vous</a></p>
-<p>A bientôt !<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","manage_url","business_name"]');
-
--- Admin par défaut (mot de passe: admin123 - à changer !)
-INSERT INTO `ab_users` (`first_name`, `last_name`, `email`, `password`, `role`) VALUES
-('Admin', 'Salon', 'admin@monsalon.fr', '$2y$10$placeholder_will_be_set_during_install', 'admin');
+INSERT INTO `wp_os_templates` (`name`, `slug`, `proxmox_template`, `icon`, `category`, `sort_order`) VALUES
+('Debian 12', 'debian-12', 'local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst', 'debian', 'linux', 1),
+('Ubuntu 22.04', 'ubuntu-2204', 'local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst', 'ubuntu', 'linux', 2),
+('Ubuntu 24.04', 'ubuntu-2404', 'local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst', 'ubuntu', 'linux', 3),
+('AlmaLinux 9', 'alma-9', 'local:vztmpl/almalinux-9-default_20230607_amd64.tar.xz', 'almalinux', 'linux', 4),
+('Rocky Linux 9', 'rocky-9', 'local:vztmpl/rockylinux-9-default_20230629_amd64.tar.xz', 'rocky', 'linux', 5),
+('Alpine 3.19', 'alpine-319', 'local:vztmpl/alpine-3.19-default_20240207_amd64.tar.xz', 'alpine', 'linux', 6);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1,48 +1,52 @@
 <?php
 /**
- * ABAppointments - Settings Manager
+ * WebPanel - Settings Manager
  */
 class Settings {
-    private static array $cache = [];
-    private static bool $loaded = false;
+    private $cache = [];
+    private $loaded = false;
 
-    public static function loadAll(): void {
-        if (self::$loaded) return;
-        $db = Database::getInstance();
-        $rows = $db->fetchAll("SELECT setting_key, setting_value FROM ab_settings");
-        foreach ($rows as $row) {
-            self::$cache[$row['setting_key']] = $row['setting_value'];
+    private function loadAll() {
+        if ($this->loaded) return;
+        try {
+            $db = Database::getInstance();
+            $rows = $db->fetchAll("SELECT setting_key, setting_value FROM wp_settings");
+            foreach ($rows as $row) {
+                $this->cache[$row['setting_key']] = $row['setting_value'];
+            }
+            $this->loaded = true;
+        } catch (Exception $e) {
+            $this->loaded = true;
         }
-        self::$loaded = true;
     }
 
-    public static function get(string $key, string $default = ''): string {
-        self::loadAll();
-        return self::$cache[$key] ?? $default;
+    public function get($key, $default = '') {
+        $this->loadAll();
+        return $this->cache[$key] ?? $default;
     }
 
-    public static function set(string $key, string $value): void {
+    public function set($key, $value) {
         $db = Database::getInstance();
-        $existing = $db->fetchOne("SELECT id FROM ab_settings WHERE setting_key = ?", [$key]);
-        if ($existing) {
-            $db->update('ab_settings', ['setting_value' => $value], 'setting_key = ?', [$key]);
+        $exists = $db->fetchOne("SELECT id FROM wp_settings WHERE setting_key = ?", [$key]);
+        if ($exists) {
+            $db->update('wp_settings', ['setting_value' => $value], 'setting_key = ?', [$key]);
         } else {
-            $db->insert('ab_settings', ['setting_key' => $key, 'setting_value' => $value]);
+            $db->insert('wp_settings', ['setting_key' => $key, 'setting_value' => $value]);
         }
-        self::$cache[$key] = $value;
+        $this->cache[$key] = $value;
     }
 
-    public static function getMultiple(array $keys): array {
+    public function getMultiple($keys) {
         $result = [];
         foreach ($keys as $key) {
-            $result[$key] = self::get($key);
+            $result[$key] = $this->get($key);
         }
         return $result;
     }
 
-    public static function setMultiple(array $data): void {
+    public function setMultiple($data) {
         foreach ($data as $key => $value) {
-            self::set($key, $value);
+            $this->set($key, $value);
         }
     }
 }

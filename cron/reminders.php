@@ -1,39 +1,77 @@
 <?php
 /**
- * ABAppointments - Cron: Send appointment reminders
- *
- * Schedule this cron to run once daily (e.g., at 8:00 AM):
- * 0 8 * * * php /path/to/ABAppointments/cron/reminders.php
+ * WebPanel - Cron: Send payment reminders
+ * Run daily: 0 9 * * * php /path/to/cron/reminders.php
  */
-
 require_once __DIR__ . '/../core/App.php';
 
 $db = Database::getInstance();
 $mailer = new Mailer();
 
-// Get tomorrow's appointments
-$tomorrow = date('Y-m-d', strtotime('+1 day'));
-$appointments = $db->fetchAll(
-    "SELECT a.*, c.first_name as cf, c.last_name as cl, c.email as ce,
-            s.name as sn, s.duration as sd
-     FROM ab_appointments a
-     JOIN ab_customers c ON a.customer_id = c.id
-     JOIN ab_services s ON a.service_id = s.id
-     WHERE DATE(a.start_datetime) = ? AND a.status IN ('confirmed', 'pending')",
-    [$tomorrow]
+echo "[" . date('Y-m-d H:i:s') . "] Payment reminder cron started\n";
+
+$reminderDays = (int)wp_setting('reminder_days_before', 3);
+
+// Remind about upcoming due dates
+$upcomingInvoices = $db->fetchAll(
+    "SELECT i.*, u.email, u.first_name
+     FROM wp_invoices i JOIN wp_users u ON i.user_id = u.id
+     WHERE i.status = 'pending'
+     AND i.due_date = DATE_ADD(CURDATE(), INTERVAL ? DAY)
+     AND i.reminder_sent = 0",
+    [$reminderDays]
 );
 
-$sent = 0;
-foreach ($appointments as $a) {
-    $result = $mailer->sendTemplate('appointment_reminder', $a['ce'], [
-        'customer_name' => $a['cf'] . ' ' . $a['cl'],
-        'service_name' => $a['sn'],
-        'appointment_date' => ab_format_date($a['start_datetime']),
-        'appointment_time' => ab_format_time($a['start_datetime']),
-        'manage_url' => ab_url('manage/' . $a['hash']),
-        'business_name' => ab_setting('business_name'),
+$count = 0;
+foreach ($upcomingInvoices as $inv) {
+    $sent = $mailer->sendTemplate($inv['email'], 'payment_reminder', [
+        'first_name' => $inv['first_name'],
+        'invoice_number' => $inv['invoice_number'],
+        'total' => wp_format_price($inv['total']),
+        'currency' => wp_setting('currency', 'EUR'),
+        'due_date' => wp_format_date($inv['due_date']),
+        'invoice_url' => wp_url("client/?page=invoice-pay&id={$inv['id']}")
     ]);
-    if ($result) $sent++;
+
+    if ($sent) {
+        $db->update('wp_invoices', [
+            'reminder_sent' => $inv['reminder_sent'] + 1,
+            'last_reminder_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$inv['id']]);
+        $count++;
+    }
 }
 
-echo date('Y-m-d H:i:s') . " - $sent rappel(s) envoyé(s) sur " . count($appointments) . " rendez-vous.\n";
+echo "  Upcoming reminders sent: $count\n";
+
+// Remind about overdue invoices (every 3 days)
+$overdueInvoices = $db->fetchAll(
+    "SELECT i.*, u.email, u.first_name
+     FROM wp_invoices i JOIN wp_users u ON i.user_id = u.id
+     WHERE i.status = 'overdue'
+     AND (i.last_reminder_at IS NULL OR i.last_reminder_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
+     AND i.reminder_sent < 5"
+);
+
+$overdueCount = 0;
+foreach ($overdueInvoices as $inv) {
+    $sent = $mailer->sendTemplate($inv['email'], 'payment_reminder', [
+        'first_name' => $inv['first_name'],
+        'invoice_number' => $inv['invoice_number'],
+        'total' => wp_format_price($inv['total']),
+        'currency' => wp_setting('currency', 'EUR'),
+        'due_date' => wp_format_date($inv['due_date']),
+        'invoice_url' => wp_url("client/?page=invoice-pay&id={$inv['id']}")
+    ]);
+
+    if ($sent) {
+        $db->update('wp_invoices', [
+            'reminder_sent' => $inv['reminder_sent'] + 1,
+            'last_reminder_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$inv['id']]);
+        $overdueCount++;
+    }
+}
+
+echo "  Overdue reminders sent: $overdueCount\n";
+echo "[" . date('Y-m-d H:i:s') . "] Done\n";
