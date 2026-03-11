@@ -4,7 +4,7 @@
  */
 class InvoiceManager {
 
-    public static function create($userId, $subscriptionId, $items, $dueDate = null) {
+    public static function create($userId, $subscriptionId, $items, $dueDate = null, $promoCodeId = null, $discountAmount = 0) {
         $db = Database::getInstance();
         $settings = new Settings();
 
@@ -22,10 +22,11 @@ class InvoiceManager {
 
         $taxAmount = round($subtotal * $taxRate / 100, 2);
         $total = round($subtotal + $taxAmount, 2);
+        $total = max(0, $total);
 
         $db->beginTransaction();
         try {
-            $invoiceId = $db->insert('wp_invoices', [
+            $invoiceData = [
                 'invoice_number' => $invoiceNumber,
                 'user_id' => $userId,
                 'subscription_id' => $subscriptionId,
@@ -33,9 +34,14 @@ class InvoiceManager {
                 'subtotal' => $subtotal,
                 'tax_rate' => $taxRate,
                 'tax_amount' => $taxAmount,
+                'discount_amount' => $discountAmount,
                 'total' => $total,
-                'due_date' => $dueDate
-            ]);
+                'due_date' => $dueDate,
+            ];
+            if ($promoCodeId) {
+                $invoiceData['promo_code_id'] = $promoCodeId;
+            }
+            $invoiceId = $db->insert('wp_invoices', $invoiceData);
 
             foreach ($items as $item) {
                 $qty = $item['quantity'] ?? 1;

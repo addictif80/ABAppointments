@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS `wp_users` (
     `password_reset_token` VARCHAR(64) DEFAULT NULL,
     `password_reset_expires` DATETIME DEFAULT NULL,
     `stripe_customer_id` VARCHAR(255) DEFAULT NULL,
+    `credit_balance` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `last_login` DATETIME DEFAULT NULL,
     `notes` TEXT DEFAULT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -196,8 +197,11 @@ CREATE TABLE IF NOT EXISTS `wp_invoices` (
     `subtotal` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `tax_rate` DECIMAL(5,2) NOT NULL DEFAULT 20.00,
     `tax_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `discount_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `credit_applied` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `total` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `currency` VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    `promo_code_id` INT UNSIGNED DEFAULT NULL,
     `due_date` DATE NOT NULL,
     `paid_at` DATETIME DEFAULT NULL,
     `payment_method` VARCHAR(50) DEFAULT NULL,
@@ -382,6 +386,89 @@ CREATE TABLE IF NOT EXISTS `wp_incidents` (
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_status` (`status`),
     FOREIGN KEY (`monitor_id`) REFERENCES `wp_monitors`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- PROMO CODES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_promo_codes` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `code` VARCHAR(50) NOT NULL UNIQUE,
+    `description` VARCHAR(255) DEFAULT NULL,
+    `type` ENUM('percentage','fixed') NOT NULL DEFAULT 'percentage',
+    `value` DECIMAL(10,2) NOT NULL,
+    `min_order_amount` DECIMAL(10,2) DEFAULT NULL,
+    `max_discount` DECIMAL(10,2) DEFAULT NULL,
+    `usage_limit` INT DEFAULT NULL,
+    `usage_limit_per_user` INT DEFAULT 1,
+    `used_count` INT NOT NULL DEFAULT 0,
+    `applicable_products` JSON DEFAULT NULL,
+    `applicable_billing_cycles` JSON DEFAULT NULL,
+    `valid_from` DATETIME DEFAULT NULL,
+    `valid_to` DATETIME DEFAULT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_code` (`code`),
+    INDEX `idx_active` (`is_active`),
+    INDEX `idx_valid` (`valid_from`, `valid_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wp_promo_code_usage` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `promo_code_id` INT UNSIGNED NOT NULL,
+    `user_id` INT UNSIGNED NOT NULL,
+    `invoice_id` INT UNSIGNED DEFAULT NULL,
+    `discount_amount` DECIMAL(10,2) NOT NULL,
+    `used_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_code` (`promo_code_id`),
+    INDEX `idx_user` (`user_id`),
+    FOREIGN KEY (`promo_code_id`) REFERENCES `wp_promo_codes`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`invoice_id`) REFERENCES `wp_invoices`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- GIFT CARDS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `wp_gift_cards` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `code` VARCHAR(50) NOT NULL UNIQUE,
+    `initial_amount` DECIMAL(10,2) NOT NULL,
+    `balance` DECIMAL(10,2) NOT NULL,
+    `currency` VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    `purchaser_user_id` INT UNSIGNED DEFAULT NULL,
+    `recipient_email` VARCHAR(255) DEFAULT NULL,
+    `recipient_name` VARCHAR(255) DEFAULT NULL,
+    `message` TEXT DEFAULT NULL,
+    `redeemed_by_user_id` INT UNSIGNED DEFAULT NULL,
+    `status` ENUM('active','used','expired','cancelled') NOT NULL DEFAULT 'active',
+    `purchased_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `redeemed_at` DATETIME DEFAULT NULL,
+    `expires_at` DATE DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_code` (`code`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_purchaser` (`purchaser_user_id`),
+    INDEX `idx_redeemed` (`redeemed_by_user_id`),
+    FOREIGN KEY (`purchaser_user_id`) REFERENCES `wp_users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`redeemed_by_user_id`) REFERENCES `wp_users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wp_credit_transactions` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT UNSIGNED NOT NULL,
+    `amount` DECIMAL(10,2) NOT NULL,
+    `type` ENUM('credit','debit') NOT NULL,
+    `source` ENUM('gift_card','manual','refund') NOT NULL,
+    `reference_id` INT UNSIGNED DEFAULT NULL,
+    `description` VARCHAR(255) DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_user` (`user_id`),
+    FOREIGN KEY (`user_id`) REFERENCES `wp_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

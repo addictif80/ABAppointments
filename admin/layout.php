@@ -44,6 +44,8 @@ $overdueInvoices = $db->count('wp_invoices', "status = 'overdue'");
         <div class="section-label">Finances</div>
         <a href="<?= wp_url('admin/?page=invoices') ?>" class="nav-link <?= in_array($page, ['invoices','invoice-detail']) ? 'active' : '' ?>"><i class="bi bi-receipt"></i> Factures <?php if ($overdueInvoices): ?><span class="badge bg-danger ms-auto"><?= $overdueInvoices ?></span><?php endif; ?></a>
         <a href="<?= wp_url('admin/?page=payments') ?>" class="nav-link <?= $page === 'payments' ? 'active' : '' ?>"><i class="bi bi-credit-card"></i> Paiements</a>
+        <a href="<?= wp_url('admin/?page=promo-codes') ?>" class="nav-link <?= $page === 'promo-codes' ? 'active' : '' ?>"><i class="bi bi-tag"></i> Codes Promo</a>
+        <a href="<?= wp_url('admin/?page=gift-cards') ?>" class="nav-link <?= $page === 'gift-cards' ? 'active' : '' ?>"><i class="bi bi-gift"></i> Cartes Cadeau</a>
 
         <div class="section-label">Support</div>
         <a href="<?= wp_url('admin/?page=tickets') ?>" class="nav-link <?= in_array($page, ['tickets','ticket-detail']) ? 'active' : '' ?>"><i class="bi bi-chat-left-text"></i> Tickets <?php if ($openTickets): ?><span class="badge bg-warning ms-auto"><?= $openTickets ?></span><?php endif; ?></a>

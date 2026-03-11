@@ -23,6 +23,7 @@ $allowedPages = array_merge($publicPages, [
     'dashboard', 'services', 'order', 'order-confirm',
     'subscriptions', 'vps-detail', 'hosting-detail', 'navidrome-detail',
     'invoices', 'invoice-detail', 'invoice-pay',
+    'gift-cards',
     'tickets', 'ticket-detail', 'ticket-new',
     'profile', 'logout'
 ]);

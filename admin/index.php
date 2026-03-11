@@ -21,6 +21,7 @@ $allowedPages = [
     'login', 'dashboard', 'clients', 'client-detail',
     'products', 'subscriptions', 'subscription-detail',
     'invoices', 'invoice-detail', 'payments',
+    'promo-codes', 'gift-cards',
     'tickets', 'ticket-detail',
     'monitoring', 'incidents',
     'ip-pool', 'os-templates', 'email-templates',

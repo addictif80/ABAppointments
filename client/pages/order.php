@@ -16,12 +16,62 @@ if ($product['type'] === 'vps') {
     $osTemplates = $db->fetchAll("SELECT * FROM wp_os_templates WHERE is_active = 1 ORDER BY sort_order");
 }
 
+// User credit balance
+$user = $db->fetchOne("SELECT credit_balance FROM wp_users WHERE id = ?", [$userId]);
+$creditBalance = (float)($user['credit_balance'] ?? 0);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $billingCycle = in_array($_POST['billing_cycle'] ?? '', ['monthly', 'yearly']) ? $_POST['billing_cycle'] : 'monthly';
     $price = $billingCycle === 'yearly' && $product['price_yearly'] ? $product['price_yearly'] : $product['price_monthly'];
+    $promoCode = strtoupper(trim($_POST['promo_code'] ?? ''));
+    $useCredit = isset($_POST['use_credit']) ? 1 : 0;
 
     $db->beginTransaction();
     try {
+        // Validate promo code
+        $discount = 0;
+        $promoCodeId = null;
+        if (!empty($promoCode)) {
+            $promo = $db->fetchOne("SELECT * FROM wp_promo_codes WHERE code = ? AND is_active = 1", [$promoCode]);
+            if (!$promo) {
+                throw new Exception('Code promo invalide.');
+            }
+            if ($promo['valid_from'] && strtotime($promo['valid_from']) > time()) {
+                throw new Exception('Ce code promo n\'est pas encore actif.');
+            }
+            if ($promo['valid_to'] && strtotime($promo['valid_to']) < time()) {
+                throw new Exception('Ce code promo a expire.');
+            }
+            if ($promo['usage_limit'] && $promo['used_count'] >= $promo['usage_limit']) {
+                throw new Exception('Ce code promo a atteint sa limite d\'utilisation.');
+            }
+            $userUsage = $db->count('wp_promo_code_usage', 'promo_code_id = ? AND user_id = ?', [$promo['id'], $userId]);
+            if ($promo['usage_limit_per_user'] && $userUsage >= $promo['usage_limit_per_user']) {
+                throw new Exception('Vous avez deja utilise ce code promo.');
+            }
+            if ($promo['applicable_products']) {
+                $applicableProducts = json_decode($promo['applicable_products'], true);
+                if (!empty($applicableProducts) && !in_array($product['id'], $applicableProducts)) {
+                    throw new Exception('Ce code promo ne s\'applique pas a ce produit.');
+                }
+            }
+
+            $subtotalForDiscount = $price + ($product['setup_fee'] > 0 ? $product['setup_fee'] : 0);
+            if ($promo['min_order_amount'] && $subtotalForDiscount < $promo['min_order_amount']) {
+                throw new Exception('Le montant minimum de commande pour ce code est de ' . wp_format_price($promo['min_order_amount']) . '.');
+            }
+
+            if ($promo['type'] === 'percentage') {
+                $discount = round($subtotalForDiscount * $promo['value'] / 100, 2);
+                if ($promo['max_discount'] && $discount > $promo['max_discount']) {
+                    $discount = $promo['max_discount'];
+                }
+            } else {
+                $discount = min($promo['value'], $subtotalForDiscount);
+            }
+            $promoCodeId = $promo['id'];
+        }
+
         // Create subscription
         $subId = $db->insert('wp_subscriptions', [
             'user_id' => $userId,
@@ -32,13 +82,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'next_due_date' => date('Y-m-d')
         ]);
 
-        // Create initial invoice
+        // Create initial invoice items
         $items = [['description' => $product['name'] . ' - ' . ($billingCycle === 'yearly' ? 'Annuel' : 'Mensuel'), 'unit_price' => $price, 'quantity' => 1]];
         if ($product['setup_fee'] > 0) {
             $items[] = ['description' => "Frais d'installation - " . $product['name'], 'unit_price' => $product['setup_fee'], 'quantity' => 1];
         }
+        if ($discount > 0) {
+            $items[] = ['description' => "Remise code promo ($promoCode)", 'unit_price' => -$discount, 'quantity' => 1];
+        }
 
-        $invoiceId = InvoiceManager::create($userId, $subId, $items);
+        $invoiceId = InvoiceManager::create($userId, $subId, $items, null, $promoCodeId, $discount);
+
+        // Apply credit balance if requested
+        if ($useCredit && $creditBalance > 0) {
+            $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ?", [$invoiceId]);
+            $creditToApply = min($creditBalance, $invoice['total']);
+            if ($creditToApply > 0) {
+                $newTotal = round($invoice['total'] - $creditToApply, 2);
+                $db->update('wp_invoices', [
+                    'credit_applied' => $creditToApply,
+                    'total' => $newTotal,
+                ], 'id = ?', [$invoiceId]);
+
+                // Debit user credit
+                $db->query("UPDATE wp_users SET credit_balance = credit_balance - ? WHERE id = ?", [$creditToApply, $userId]);
+                $db->insert('wp_credit_transactions', [
+                    'user_id' => $userId,
+                    'amount' => $creditToApply,
+                    'type' => 'debit',
+                    'source' => 'manual',
+                    'reference_id' => $invoiceId,
+                    'description' => 'Credit applique a la facture',
+                ]);
+
+                // If total is 0, mark as paid directly
+                if ($newTotal <= 0) {
+                    InvoiceManager::markPaid($invoiceId, 'credit');
+                    $db->commit();
+
+                    // Record promo usage
+                    if ($promoCodeId) {
+                        $db->query("UPDATE wp_promo_codes SET used_count = used_count + 1 WHERE id = ?", [$promoCodeId]);
+                        $db->insert('wp_promo_code_usage', [
+                            'promo_code_id' => $promoCodeId,
+                            'user_id' => $userId,
+                            'invoice_id' => $invoiceId,
+                            'discount_amount' => $discount,
+                        ]);
+                    }
+
+                    wp_flash('success', 'Commande payee avec votre credit ! Votre service est en cours d\'activation.');
+                    wp_redirect(wp_url('client/?page=subscriptions'));
+                    exit;
+                }
+            }
+        }
+
+        // Record promo code usage
+        if ($promoCodeId) {
+            $db->query("UPDATE wp_promo_codes SET used_count = used_count + 1 WHERE id = ?", [$promoCodeId]);
+            $db->insert('wp_promo_code_usage', [
+                'promo_code_id' => $promoCodeId,
+                'user_id' => $userId,
+                'invoice_id' => $invoiceId,
+                'discount_amount' => $discount,
+            ]);
+        }
 
         // Store extra data for provisioning
         if ($product['type'] === 'vps') {
@@ -136,6 +245,28 @@ $typeLabels = ['vps' => 'VPS', 'hosting' => 'Hebergement', 'navidrome' => 'Navid
                     </div>
                     <?php endif; ?>
 
+                    <!-- Promo Code -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Code promo</label>
+                        <div class="input-group">
+                            <input type="text" name="promo_code" id="promoCodeInput" class="form-control font-monospace text-uppercase" placeholder="Entrez un code promo">
+                            <button type="button" class="btn btn-outline-secondary" onclick="validatePromo()">Appliquer</button>
+                        </div>
+                        <div id="promoFeedback" class="form-text"></div>
+                    </div>
+
+                    <!-- Credit Balance -->
+                    <?php if ($creditBalance > 0): ?>
+                    <div class="mb-3">
+                        <div class="form-check card p-3 border-success">
+                            <input class="form-check-input" type="checkbox" name="use_credit" id="useCredit" value="1">
+                            <label class="form-check-label" for="useCredit">
+                                Utiliser mon credit : <strong class="text-success"><?= wp_format_price($creditBalance) ?></strong>
+                            </label>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                     <!-- Summary -->
                     <div class="card bg-light mb-3">
                         <div class="card-body">
@@ -150,6 +281,10 @@ $typeLabels = ['vps' => 'VPS', 'hosting' => 'Hebergement', 'navidrome' => 'Navid
                                 <span><?= wp_format_price($product['setup_fee']) ?></span>
                             </div>
                             <?php endif; ?>
+                            <div id="discountRow" class="d-flex justify-content-between text-success" style="display:none !important">
+                                <span id="discountLabel">Remise</span>
+                                <span id="discountDisplay"></span>
+                            </div>
                             <hr>
                             <div class="d-flex justify-content-between fw-bold">
                                 <span>Total TTC</span>
@@ -166,3 +301,27 @@ $typeLabels = ['vps' => 'VPS', 'hosting' => 'Hebergement', 'navidrome' => 'Navid
         </div>
     </div>
 </div>
+
+<script>
+function validatePromo() {
+    const code = document.getElementById('promoCodeInput').value.trim();
+    const feedback = document.getElementById('promoFeedback');
+    const discountRow = document.getElementById('discountRow');
+    if (!code) { feedback.innerHTML = ''; discountRow.style.cssText = 'display:none !important'; return; }
+
+    fetch('<?= wp_url('api/') ?>?action=validate-promo&code=' + encodeURIComponent(code) + '&product_id=<?= $product['id'] ?>')
+        .then(r => r.json())
+        .then(data => {
+            if (data.valid) {
+                feedback.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> ' + data.message + '</span>';
+                discountRow.style.cssText = '';
+                document.getElementById('discountLabel').textContent = 'Remise (' + code + ')';
+                document.getElementById('discountDisplay').textContent = '-' + data.discount_preview;
+            } else {
+                feedback.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + data.message + '</span>';
+                discountRow.style.cssText = 'display:none !important';
+            }
+        })
+        .catch(() => { feedback.innerHTML = '<span class="text-danger">Erreur de verification.</span>'; });
+}
+</script>
