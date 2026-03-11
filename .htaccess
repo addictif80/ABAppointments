@@ -10,7 +10,7 @@ RewriteBase /
 # Block access to sensitive directories
 RewriteRule ^config/ - [F,L]
 RewriteRule ^core/ - [F,L]
-RewriteRule ^install/ - [F,L]
+# RewriteRule ^install/ - [F,L]  # Uncomment after installation
 RewriteRule ^cron/ - [F,L]
 
 # API routes
