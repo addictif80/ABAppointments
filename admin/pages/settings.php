@@ -90,7 +90,7 @@ $tab = $_GET['tab'] ?? 'general';
                 <div class="col-12"><label class="form-label">Cle publique</label><input type="text" name="stripe_public_key" class="form-control" value="<?= wp_escape($settings->get('stripe_public_key')) ?>" placeholder="pk_..."></div>
                 <div class="col-12"><label class="form-label">Cle secrete</label><input type="password" name="stripe_secret_key" class="form-control" value="<?= wp_escape($settings->get('stripe_secret_key')) ?>" placeholder="sk_..."></div>
                 <div class="col-12"><label class="form-label">Secret Webhook</label><input type="password" name="stripe_webhook_secret" class="form-control" value="<?= wp_escape($settings->get('stripe_webhook_secret')) ?>" placeholder="whsec_..."></div>
-                <div class="col-12"><div class="alert alert-info"><i class="bi bi-info-circle me-1"></i> URL du webhook Stripe : <code><?= wp_escape($settings->get('site_url')) ?>/webhook/stripe</code></div></div>
+                <div class="col-12"><div class="alert alert-info"><i class="bi bi-info-circle me-1"></i> URL du webhook Stripe : <code><?= wp_escape($settings->get('site_url')) ?>/api/stripe-webhook.php</code></div></div>
             </div>
 
             <?php elseif ($tab === 'smtp'): ?>
