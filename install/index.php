@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
 
                 $hashedPassword = password_hash($adminPassword, PASSWORD_BCRYPT, ['cost' => 12]);
-                $stmt = $pdo->prepare("INSERT INTO wp_users (first_name, last_name, email, password, role, is_active) VALUES (?, ?, ?, ?, 'admin', 1)");
+                $stmt = $pdo->prepare("INSERT INTO wp_users (first_name, last_name, email, password, role, status) VALUES (?, ?, ?, ?, 'admin', 'active')");
                 $stmt->execute([$adminFirstName, $adminLastName, $adminEmail, $hashedPassword]);
 
                 // Update settings
