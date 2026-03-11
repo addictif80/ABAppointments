@@ -6,6 +6,11 @@
 // Load config
 $configFile = __DIR__ . '/../config/config.php';
 if (!file_exists($configFile)) {
+    $installLock = __DIR__ . '/../install/install.lock';
+    if (file_exists($installLock)) {
+        http_response_code(503);
+        die('<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>Configuration manquante</h2><p>Le fichier <code>config/config.php</code> n\'a pas pu etre cree automatiquement.<br>Copiez <code>config/config.sample.php</code> vers <code>config/config.php</code> et renseignez vos parametres.</p></body></html>');
+    }
     header('Location: ' . dirname($_SERVER['SCRIPT_NAME']) . '/install/');
     exit;
 }

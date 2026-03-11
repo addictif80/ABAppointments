@@ -129,10 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['install']['done'] = true;
                 $_SESSION['install']['config_written'] = $configWritten;
 
-                // Lock the installer and create protective .htaccess
-                file_put_contents(__DIR__ . '/install.lock', 'Installed on ' . date('Y-m-d H:i:s'));
-                if (!file_exists(__DIR__ . '/.htaccess')) {
-                    file_put_contents(__DIR__ . '/.htaccess', "Order Deny,Allow\nDeny from all\n");
+                // Only lock the installer if config was written successfully
+                if ($configWritten) {
+                    file_put_contents(__DIR__ . '/install.lock', 'Installed on ' . date('Y-m-d H:i:s'));
+                    if (!file_exists(__DIR__ . '/.htaccess')) {
+                        file_put_contents(__DIR__ . '/.htaccess', "Order Deny,Allow\nDeny from all\n");
+                    }
                 }
 
                 header('Location: ?step=4');
