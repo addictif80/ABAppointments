@@ -1,0 +1,5 @@
+# Block all access to install directory after installation
+# This file is created as a safety net in case the root .htaccess rule is bypassed
+
+Order Deny,Allow
+Deny from all

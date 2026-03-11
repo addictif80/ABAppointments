@@ -3,6 +3,13 @@
  * WebPanel - Installer
  * 4-step wizard: Requirements → Database → Admin Account → Success
  */
+
+// Block access if installation is already completed
+if (file_exists(__DIR__ . '/install.lock')) {
+    http_response_code(403);
+    die('<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>Installation already completed</h2><p>The installer is locked. Delete <code>install/install.lock</code> to re-run the installation.</p></body></html>');
+}
+
 session_start();
 $step = (int)($_GET['step'] ?? 1);
 $error = '';
@@ -121,6 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $_SESSION['install']['done'] = true;
                 $_SESSION['install']['config_written'] = $configWritten;
+
+                // Lock the installer and create protective .htaccess
+                file_put_contents(__DIR__ . '/install.lock', 'Installed on ' . date('Y-m-d H:i:s'));
+                if (!file_exists(__DIR__ . '/.htaccess')) {
+                    file_put_contents(__DIR__ . '/.htaccess', "Order Deny,Allow\nDeny from all\n");
+                }
 
                 header('Location: ?step=4');
                 exit;
@@ -257,7 +270,7 @@ $checks = [
                     <a href="../admin/?page=login" class="btn btn-install"><i class="bi bi-shield-lock me-1"></i>Administration</a>
                     <a href="../client/?page=login" class="btn btn-outline-secondary"><i class="bi bi-person me-1"></i>Espace client</a>
                 </div>
-                <p class="mt-3 text-muted small"><i class="bi bi-shield-exclamation me-1"></i>Pensez a proteger ou supprimer le dossier <code>/install/</code> en production.</p>
+                <p class="mt-3 text-muted small"><i class="bi bi-shield-check me-1"></i>Le dossier <code>/install/</code> a ete automatiquement verrouille. Supprimez-le pour une securite maximale.</p>
             </div>
             <?php session_destroy(); ?>
             <?php endif; ?>
