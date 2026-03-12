@@ -19,6 +19,7 @@ if (!$nd && $sub['status'] === 'active') {
         $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subId]);
     } catch (Exception $e) {
         error_log("Navidrome auto-provision failed for sub $subId: " . $e->getMessage());
+        $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subId]);
     }
 }
 

@@ -121,9 +121,33 @@ class NavidromeAPI {
         ]);
     }
 
+    public function findUserByName($username) {
+        $users = $this->getUsers();
+        if (is_array($users)) {
+            foreach ($users as $user) {
+                if (strtolower($user['userName'] ?? '') === strtolower($username)) {
+                    return $user;
+                }
+            }
+        }
+        return null;
+    }
+
     public function provisionUser($baseUsername) {
         $username = preg_replace('/[^a-z0-9_]/', '', strtolower($baseUsername));
         $password = wp_generate_password(12);
+
+        // Check if user already exists in Navidrome
+        $existing = $this->findUserByName($username);
+        if ($existing) {
+            // Reset password and return existing user
+            $this->changePassword($existing['id'], $password);
+            return [
+                'username' => $username,
+                'password' => $password,
+                'user_id' => $existing['id']
+            ];
+        }
 
         $result = $this->createUser($username, $password, false);
 
