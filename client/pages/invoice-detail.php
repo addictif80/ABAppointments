@@ -19,8 +19,8 @@ if (isset($_GET['payment']) && $_GET['payment'] === 'success' && in_array($invoi
             $session = $stripe->getCheckoutSession($sessionId);
             $debugInfo[] = "payment_status=" . ($session['payment_status'] ?? 'missing');
             $debugInfo[] = "payment_intent=" . ($session['payment_intent'] ?? 'missing');
-            if ($session['payment_status'] === 'paid' && !empty($session['payment_intent'])) {
-                InvoiceManager::markPaid($invoiceId, 'stripe', $session['payment_intent']);
+            if ($session['payment_status'] === 'paid') {
+                InvoiceManager::markPaid($invoiceId, 'stripe', $session['payment_intent'] ?? null);
                 $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ?", [$invoiceId, $userId]);
                 $debugInfo[] = "markPaid called, new status=" . $invoice['status'];
             }
