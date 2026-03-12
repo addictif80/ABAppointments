@@ -7,6 +7,23 @@ $invoiceId = (int)($_GET['id'] ?? 0);
 $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ?", [$invoiceId, $userId]);
 if (!$invoice) { wp_flash('error', 'Facture introuvable.'); wp_redirect(wp_url('client/?page=invoices')); }
 
+// Check payment status on return from Stripe
+if (isset($_GET['payment']) && $_GET['payment'] === 'success' && in_array($invoice['status'], ['pending', 'overdue'])) {
+    $stripe = new StripeManager();
+    if ($stripe->isConfigured() && !empty($invoice['stripe_checkout_session_id'])) {
+        try {
+            $session = $stripe->getCheckoutSession($invoice['stripe_checkout_session_id']);
+            if ($session['payment_status'] === 'paid' && !empty($session['payment_intent'])) {
+                InvoiceManager::markPaid($invoiceId, 'stripe', $session['payment_intent']);
+                $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ?", [$invoiceId, $userId]);
+            }
+        } catch (Exception $e) {}
+    }
+    if (in_array($invoice['status'], ['pending', 'overdue'])) {
+        $paymentPending = true;
+    }
+}
+
 $items = $db->fetchAll("SELECT * FROM wp_invoice_items WHERE invoice_id = ?", [$invoiceId]);
 $user = Auth::user();
 
@@ -64,7 +81,13 @@ $pageTitle = 'Facture ' . $invoice['invoice_number'];
                     </tfoot>
                 </table>
 
-                <?php if (in_array($invoice['status'], ['pending', 'overdue'])): ?>
+                <?php if (!empty($paymentPending)): ?>
+                <div class="alert alert-info text-center mt-4">
+                    <i class="bi bi-hourglass-split me-2"></i>
+                    <strong>Paiement en cours de traitement...</strong><br>
+                    <small>Votre paiement a ete recu et sera confirme sous peu. Rafraichissez la page dans quelques instants.</small>
+                </div>
+                <?php elseif (in_array($invoice['status'], ['pending', 'overdue'])): ?>
                 <div class="text-center mt-4">
                     <a href="<?= wp_url("client/?page=invoice-pay&id={$invoice['id']}") ?>" class="btn btn-primary btn-lg">
                         <i class="bi bi-credit-card me-2"></i> Payer maintenant

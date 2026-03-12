@@ -45,6 +45,8 @@ if (!$error) {
             ['invoice_id' => $invoiceId, 'user_id' => $userId]
         );
         $redirectUrl = $session['url'];
+        // Store checkout session ID on invoice for payment verification on return
+        $db->update('wp_invoices', ['stripe_checkout_session_id' => $session['id']], 'id = ?', [$invoiceId]);
     } catch (Exception $e) {
         $error = 'Erreur lors de la creation du paiement: ' . $e->getMessage();
     }

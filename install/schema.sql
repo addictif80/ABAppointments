@@ -206,6 +206,7 @@ CREATE TABLE IF NOT EXISTS `wp_invoices` (
     `paid_at` DATETIME DEFAULT NULL,
     `payment_method` VARCHAR(50) DEFAULT NULL,
     `stripe_payment_intent_id` VARCHAR(255) DEFAULT NULL,
+    `stripe_checkout_session_id` VARCHAR(255) DEFAULT NULL,
     `stripe_invoice_id` VARCHAR(255) DEFAULT NULL,
     `notes` TEXT DEFAULT NULL,
     `reminder_sent` INT NOT NULL DEFAULT 0,
