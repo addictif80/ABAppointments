@@ -10,14 +10,19 @@ if (!$invoice) { wp_flash('error', 'Facture introuvable.'); wp_redirect(wp_url('
 // Check payment status on return from Stripe
 if (isset($_GET['payment']) && $_GET['payment'] === 'success' && in_array($invoice['status'], ['pending', 'overdue'])) {
     $stripe = new StripeManager();
-    if ($stripe->isConfigured() && !empty($invoice['stripe_checkout_session_id'])) {
+    $sessionId = $invoice['stripe_checkout_session_id'] ?? null;
+    if ($stripe->isConfigured() && !empty($sessionId)) {
         try {
-            $session = $stripe->getCheckoutSession($invoice['stripe_checkout_session_id']);
+            $session = $stripe->getCheckoutSession($sessionId);
             if ($session['payment_status'] === 'paid' && !empty($session['payment_intent'])) {
                 InvoiceManager::markPaid($invoiceId, 'stripe', $session['payment_intent']);
                 $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ?", [$invoiceId, $userId]);
             }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+            error_log("Stripe payment verify error for invoice $invoiceId: " . $e->getMessage());
+        }
+    } else {
+        error_log("Stripe verify skipped for invoice $invoiceId: configured=" . ($stripe->isConfigured() ? 'yes' : 'no') . " sessionId=" . ($sessionId ?: 'null'));
     }
     if (in_array($invoice['status'], ['pending', 'overdue'])) {
         $paymentPending = true;

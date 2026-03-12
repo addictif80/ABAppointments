@@ -37,11 +37,12 @@ if (empty($user['stripe_customer_id'])) {
 // Create checkout session
 if (!$error) {
     try {
+        $siteUrl = rtrim(wp_setting('site_url') ?: (defined('BASE_URL') ? BASE_URL : ''), '/');
         $session = $stripe->createCheckoutSession(
             [['name' => "Facture {$invoice['invoice_number']}", 'amount' => $invoice['total'], 'currency' => strtolower($invoice['currency'])]],
             $user['stripe_customer_id'],
-            wp_url("client/?page=invoice-detail&id=$invoiceId&payment=success"),
-            wp_url("client/?page=invoice-detail&id=$invoiceId&payment=cancel"),
+            $siteUrl . "/client/?page=invoice-detail&id=$invoiceId&payment=success",
+            $siteUrl . "/client/?page=invoice-detail&id=$invoiceId&payment=cancel",
             ['invoice_id' => $invoiceId, 'user_id' => $userId]
         );
         $redirectUrl = $session['url'];
