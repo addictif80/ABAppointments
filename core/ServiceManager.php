@@ -278,7 +278,12 @@ class ServiceManager {
             case 'navidrome':
                 $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subscriptionId]);
                 if ($nd && $nd['navidrome_user_id']) {
-                    // Restore password
+                    // Restore original password on Navidrome
+                    try {
+                        $password = self::decryptPassword($nd['navidrome_password']);
+                        $navidrome = new NavidromeAPI();
+                        $navidrome->changePassword($nd['navidrome_user_id'], $password);
+                    } catch (Exception $e) {}
                     $db->update('wp_services_navidrome', ['status' => 'active'], 'id = ?', [$nd['id']]);
                 }
                 break;

@@ -116,9 +116,12 @@ class NavidromeAPI {
     }
 
     public function changePassword($userId, $newPassword) {
-        return $this->request('PUT', "/user/$userId", [
-            'password' => $newPassword
-        ]);
+        // Fetch existing user data first — PUT replaces the entire resource
+        $user = $this->getUser($userId);
+        $user['password'] = $newPassword;
+        // Remove read-only fields that Navidrome doesn't accept on update
+        unset($user['lastLoginAt'], $user['lastAccessAt'], $user['createdAt'], $user['updatedAt'], $user['currentlyPlaying']);
+        return $this->request('PUT', "/user/$userId", $user);
     }
 
     public function findUserByName($username) {
