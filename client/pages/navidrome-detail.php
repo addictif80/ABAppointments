@@ -42,6 +42,31 @@ if ($nd['status'] === 'error') {
     }
 }
 
+// Handle password change
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'change_password') {
+    $newPass = $_POST['new_password'] ?? '';
+    $confirmPass = $_POST['confirm_password'] ?? '';
+    if (strlen($newPass) < 8) {
+        wp_flash('error', 'Le mot de passe doit faire au moins 8 caracteres.');
+    } elseif ($newPass !== $confirmPass) {
+        wp_flash('error', 'Les mots de passe ne correspondent pas.');
+    } elseif ($nd['status'] !== 'active') {
+        wp_flash('error', 'Le service doit etre actif pour changer le mot de passe.');
+    } else {
+        try {
+            $navidrome = new NavidromeAPI();
+            $navidrome->changePassword($nd['navidrome_user_id'], $newPass);
+            // Update stored password
+            $encryptedPass = base64_encode(openssl_encrypt($newPass, 'AES-256-CBC', SECRET_KEY, 0, substr(md5(SECRET_KEY), 0, 16)));
+            $db->update('wp_services_navidrome', ['navidrome_password' => $encryptedPass], 'id = ?', [$nd['id']]);
+            wp_flash('success', 'Mot de passe Navidrome mis a jour !');
+        } catch (Exception $e) {
+            wp_flash('error', 'Erreur: ' . $e->getMessage());
+        }
+    }
+    wp_redirect(wp_url("client/?page=navidrome-detail&id=$subId"));
+}
+
 $password = ServiceManager::decryptPassword($nd['navidrome_password']);
 $navidromeUrl = wp_setting('navidrome_url', '#');
 $storagePercent = $nd['storage_mb'] > 0 ? min(100, round($nd['storage_used_mb'] / $nd['storage_mb'] * 100)) : 0;
@@ -137,6 +162,19 @@ $statusColors = ['active' => 'success', 'creating' => 'info', 'suspended' => 'wa
                         <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText('<?= wp_escape($password) ?>')"><i class="bi bi-clipboard"></i></button>
                     </div>
                 </div>
+                <hr>
+                <h6 class="text-muted small">Changer le mot de passe</h6>
+                <form method="POST">
+                    <?= wp_csrf_field() ?>
+                    <input type="hidden" name="action" value="change_password">
+                    <div class="mb-2">
+                        <input type="password" name="new_password" class="form-control form-control-sm" placeholder="Nouveau mot de passe" minlength="8" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="password" name="confirm_password" class="form-control form-control-sm" placeholder="Confirmer" minlength="8" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-key me-1"></i> Changer</button>
+                </form>
             </div>
         </div>
 

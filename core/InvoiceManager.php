@@ -128,6 +128,22 @@ class InvoiceManager {
             }
         }
 
+        // Handle wallet topup
+        if (!empty($invoice['notes']) && strpos($invoice['notes'], 'wallet_topup:') === 0) {
+            $topupAmount = (float)str_replace('wallet_topup:', '', $invoice['notes']);
+            if ($topupAmount > 0) {
+                $db->query("UPDATE wp_users SET credit_balance = credit_balance + ? WHERE id = ?", [$topupAmount, $invoice['user_id']]);
+                $db->insert('wp_credit_transactions', [
+                    'user_id' => $invoice['user_id'],
+                    'amount' => $topupAmount,
+                    'type' => 'credit',
+                    'source' => 'manual',
+                    'reference_id' => $invoiceId,
+                    'description' => 'Rechargement porte-monnaie',
+                ]);
+            }
+        }
+
         // Send confirmation email
         $user = $db->fetchOne("SELECT * FROM wp_users WHERE id = ?", [$invoice['user_id']]);
         if ($user) {

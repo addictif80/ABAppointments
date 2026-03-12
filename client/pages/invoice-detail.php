@@ -35,6 +35,35 @@ if (isset($_GET['payment']) && $_GET['payment'] === 'success' && in_array($invoi
 
 $items = $db->fetchAll("SELECT * FROM wp_invoice_items WHERE invoice_id = ?", [$invoiceId]);
 $user = Auth::user();
+$walletBalance = (float)($user['credit_balance'] ?? 0);
+
+// Handle wallet payment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay_with_wallet' && in_array($invoice['status'], ['pending', 'overdue'])) {
+    if ($walletBalance >= $invoice['total']) {
+        try {
+            $db->beginTransaction();
+            $db->query("UPDATE wp_users SET credit_balance = credit_balance - ? WHERE id = ?", [$invoice['total'], $userId]);
+            $db->insert('wp_credit_transactions', [
+                'user_id' => $userId,
+                'amount' => $invoice['total'],
+                'type' => 'debit',
+                'source' => 'manual',
+                'reference_id' => $invoice['id'],
+                'description' => 'Paiement facture ' . $invoice['invoice_number'],
+            ]);
+            InvoiceManager::markPaid($invoice['id'], 'credit');
+            $db->commit();
+            wp_flash('success', 'Facture payee avec votre solde !');
+            wp_redirect(wp_url("client/?page=invoice-detail&id=$invoiceId"));
+        } catch (Exception $e) {
+            $db->rollback();
+            wp_flash('error', 'Erreur: ' . $e->getMessage());
+        }
+    } else {
+        wp_flash('error', 'Solde insuffisant.');
+    }
+    wp_redirect(wp_url("client/?page=invoice-detail&id=$invoiceId"));
+}
 
 $statusLabels = ['draft' => 'Brouillon', 'pending' => 'En attente', 'paid' => 'Payee', 'overdue' => 'En retard', 'cancelled' => 'Annulee', 'refunded' => 'Remboursee'];
 $statusColors = ['draft' => 'secondary', 'pending' => 'warning', 'paid' => 'success', 'overdue' => 'danger', 'cancelled' => 'dark', 'refunded' => 'info'];
@@ -101,6 +130,20 @@ $pageTitle = 'Facture ' . $invoice['invoice_number'];
                 </div>
                 <?php elseif (in_array($invoice['status'], ['pending', 'overdue'])): ?>
                 <div class="text-center mt-4">
+                    <?php if ($walletBalance >= $invoice['total'] && $invoice['total'] > 0): ?>
+                    <form method="POST" class="mb-2">
+                        <?= wp_csrf_field() ?>
+                        <input type="hidden" name="action" value="pay_with_wallet">
+                        <button type="submit" class="btn btn-success btn-lg w-100">
+                            <i class="bi bi-wallet2 me-2"></i> Payer avec mon solde (<?= wp_format_price($walletBalance) ?>)
+                        </button>
+                    </form>
+                    <div class="text-center text-muted mb-2">ou</div>
+                    <?php elseif ($walletBalance > 0 && $invoice['total'] > 0): ?>
+                    <div class="alert alert-info small">
+                        <i class="bi bi-wallet2 me-1"></i> Solde : <?= wp_format_price($walletBalance) ?> (insuffisant pour cette facture de <?= wp_format_price($invoice['total']) ?>)
+                    </div>
+                    <?php endif; ?>
                     <a href="<?= wp_url("client/?page=invoice-pay&id={$invoice['id']}") ?>" class="btn btn-primary btn-lg">
                         <i class="bi bi-credit-card me-2"></i> Payer maintenant
                     </a>

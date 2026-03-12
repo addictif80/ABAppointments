@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Cartes Cadeau & Credit';
+$pageTitle = 'Mon Porte-monnaie';
 $db = Database::getInstance();
 $userId = $_SESSION['user_id'];
 $user = Auth::user();
@@ -54,6 +54,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->rollback();
                     wp_flash('error', 'Erreur lors de l\'utilisation de la carte cadeau.');
                 }
+            }
+        }
+        wp_redirect(wp_url('client/?page=gift-cards'));
+    }
+
+    if ($action === 'topup') {
+        $amount = (float)($_POST['amount'] ?? 0);
+        if ($amount < 5 || $amount > 1000) {
+            wp_flash('error', 'Le montant doit etre entre 5€ et 1000€.');
+        } else {
+            $db->beginTransaction();
+            try {
+                $invoiceId = InvoiceManager::create($userId, null, [
+                    ['description' => 'Rechargement porte-monnaie - ' . wp_format_price($amount), 'unit_price' => $amount, 'quantity' => 1]
+                ]);
+                // Store that this invoice is a wallet topup
+                $db->update('wp_invoices', ['notes' => 'wallet_topup:' . $amount], 'id = ?', [$invoiceId]);
+                $db->commit();
+                wp_redirect(wp_url("client/?page=invoice-pay&id=$invoiceId"));
+                exit;
+            } catch (Exception $e) {
+                $db->rollback();
+                wp_flash('error', 'Erreur: ' . $e->getMessage());
             }
         }
         wp_redirect(wp_url('client/?page=gift-cards'));
@@ -122,6 +145,28 @@ $purchasedCards = $db->fetchAll("SELECT * FROM wp_gift_cards WHERE purchaser_use
                 <h6 class="mt-2 text-muted">Mon credit</h6>
                 <div class="fs-2 fw-bold text-success"><?= wp_format_price($creditBalance) ?></div>
                 <p class="text-muted small mb-0">Utilisable sur vos prochaines commandes</p>
+            </div>
+        </div>
+
+        <!-- Top up wallet -->
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Recharger mon porte-monnaie</h6></div>
+            <div class="card-body">
+                <form method="POST" class="row g-2 align-items-end">
+                    <?= wp_csrf_field() ?>
+                    <input type="hidden" name="action" value="topup">
+                    <div class="col-auto">
+                        <label class="form-label">Montant</label>
+                        <div class="input-group">
+                            <input type="number" name="amount" class="form-control" min="5" max="1000" step="5" value="20" required>
+                            <span class="input-group-text">&euro;</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-success"><i class="bi bi-credit-card me-1"></i> Recharger par carte</button>
+                    </div>
+                </form>
+                <div class="form-text mt-1">Minimum 5&euro;, maximum 1000&euro;. Le solde est utilisable sur vos prochaines commandes.</div>
             </div>
         </div>
 

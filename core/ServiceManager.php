@@ -145,10 +145,15 @@ class ServiceManager {
         $db = Database::getInstance();
         $navidrome = new NavidromeAPI();
 
-        $baseUsername = strtolower($user['first_name'] . '.' . $user['last_name']);
+        $baseUsername = strtolower(mb_substr($user['first_name'], 0, 1) . '.' . $user['last_name']);
+
+        // Get custom password from order session if available
+        $orderData = $_SESSION['order_data_' . $sub['id']] ?? null;
+        $customPassword = ($orderData && !empty($orderData['navidrome_password'])) ? $orderData['navidrome_password'] : null;
+        if ($orderData) unset($_SESSION['order_data_' . $sub['id']]);
 
         try {
-            $result = $navidrome->provisionUser($baseUsername);
+            $result = $navidrome->provisionUser($baseUsername, $customPassword);
 
             $ndId = $db->insert('wp_services_navidrome', [
                 'subscription_id' => $sub['id'],

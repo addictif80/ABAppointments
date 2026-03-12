@@ -60,8 +60,8 @@ $pendingInvoices = $db->count('wp_invoices', "user_id = ? AND status IN ('pendin
             <i class="bi bi-chat-left-text"></i> Support
             <?php if ($openTickets > 0): ?><span class="badge bg-info ms-auto"><?= $openTickets ?></span><?php endif; ?>
         </a>
-        <a href="<?= wp_url('client/?page=gift-cards') ?>" class="nav-link <?= $page === 'gift-cards' ? 'active' : '' ?>">
-            <i class="bi bi-gift"></i> Cartes Cadeau
+        <a href="<?= wp_url('client/?page=gift-cards') ?>" class="nav-link <?= in_array($page, ['gift-cards', 'wallet']) ? 'active' : '' ?>">
+            <i class="bi bi-wallet2"></i> Porte-monnaie
         </a>
         <hr style="border-color: rgba(255,255,255,.2); margin: 8px 20px;">
         <a href="<?= wp_url('client/?page=profile') ?>" class="nav-link <?= $page === 'profile' ? 'active' : '' ?>">

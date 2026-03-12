@@ -24,6 +24,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'add_note') {
         $db->update('wp_users', ['notes' => trim($_POST['notes'] ?? '')], 'id = ?', [$clientId]);
         wp_flash('success', 'Notes mises a jour.');
+    } elseif ($action === 'add_credit') {
+        $creditAmount = (float)($_POST['credit_amount'] ?? 0);
+        $creditDescription = trim($_POST['credit_description'] ?? '');
+        $creditType = $_POST['credit_type'] ?? 'credit';
+        if ($creditAmount <= 0) {
+            wp_flash('error', 'Le montant doit etre positif.');
+        } else {
+            if ($creditType === 'credit') {
+                $db->query("UPDATE wp_users SET credit_balance = credit_balance + ? WHERE id = ?", [$creditAmount, $clientId]);
+            } else {
+                $currentBalance = (float)$db->fetchColumn("SELECT credit_balance FROM wp_users WHERE id = ?", [$clientId]);
+                if ($creditAmount > $currentBalance) {
+                    wp_flash('error', 'Le montant depasse le solde actuel (' . wp_format_price($currentBalance) . ').');
+                    wp_redirect(wp_url("admin/?page=client-detail&id=$clientId"));
+                    return;
+                }
+                $db->query("UPDATE wp_users SET credit_balance = credit_balance - ? WHERE id = ?", [$creditAmount, $clientId]);
+            }
+            $db->insert('wp_credit_transactions', [
+                'user_id' => $clientId,
+                'amount' => $creditAmount,
+                'type' => $creditType,
+                'source' => 'manual',
+                'description' => $creditDescription ?: ($creditType === 'credit' ? 'Avoir admin' : 'Debit admin'),
+            ]);
+            wp_flash('success', ($creditType === 'credit' ? 'Avoir' : 'Debit') . ' de ' . wp_format_price($creditAmount) . ' applique.');
+            wp_log_activity('admin_credit_' . $creditType, 'user', $clientId, ['amount' => $creditAmount]);
+        }
+        wp_redirect(wp_url("admin/?page=client-detail&id=$clientId"));
     }
     wp_redirect(wp_url("admin/?page=client-detail&id=$clientId"));
 }
@@ -68,6 +97,37 @@ $pageTitle = $client['first_name'] . ' ' . $client['last_name'];
                     <input type="hidden" name="action" value="add_note">
                     <textarea name="notes" class="form-control mb-2" rows="3"><?= wp_escape($client['notes']) ?></textarea>
                     <button type="submit" class="btn btn-sm btn-primary">Sauvegarder</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Credit Management -->
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-wallet2 me-2"></i>Porte-monnaie</h6></div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div class="fs-4 fw-bold text-success"><?= wp_format_price($client['credit_balance'] ?? 0) ?></div>
+                    <small class="text-muted">Solde actuel</small>
+                </div>
+                <form method="POST">
+                    <?= wp_csrf_field() ?>
+                    <input type="hidden" name="action" value="add_credit">
+                    <div class="mb-2">
+                        <select name="credit_type" class="form-select form-select-sm">
+                            <option value="credit">Avoir (crediter)</option>
+                            <option value="debit">Debit (debiter)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="credit_amount" class="form-control" min="0.01" step="0.01" placeholder="Montant" required>
+                            <span class="input-group-text">&euro;</span>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" name="credit_description" class="form-control form-control-sm" placeholder="Description (optionnel)">
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary w-100">Appliquer</button>
                 </form>
             </div>
         </div>

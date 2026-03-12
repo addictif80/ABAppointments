@@ -136,9 +136,9 @@ class NavidromeAPI {
         return null;
     }
 
-    public function provisionUser($baseUsername) {
-        $username = preg_replace('/[^a-z0-9_]/', '', strtolower($baseUsername));
-        $password = wp_generate_password(12);
+    public function provisionUser($baseUsername, $customPassword = null) {
+        $username = preg_replace('/[^a-z0-9._]/', '', strtolower($baseUsername));
+        $password = $customPassword ?: wp_generate_password(12);
 
         // Check if user already exists in Navidrome
         $existing = $this->findUserByName($username);

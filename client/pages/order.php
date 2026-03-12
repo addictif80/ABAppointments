@@ -28,6 +28,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $db->beginTransaction();
     try {
+        // Validate Navidrome password early
+        if ($product['type'] === 'navidrome') {
+            $ndPassword = $_POST['navidrome_password'] ?? '';
+            if (strlen($ndPassword) < 8) {
+                throw new Exception('Le mot de passe Navidrome doit faire au moins 8 caracteres.');
+            }
+            if ($ndPassword !== ($_POST['navidrome_password_confirm'] ?? '')) {
+                throw new Exception('Les mots de passe ne correspondent pas.');
+            }
+        }
+
         // Validate promo code
         $discount = 0;
         $promoCodeId = null;
@@ -159,6 +170,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['order_data_' . $subId] = [
                 'domain' => trim($_POST['domain'] ?? '')
             ];
+        } elseif ($product['type'] === 'navidrome') {
+            $_SESSION['order_data_' . $subId] = ['navidrome_password' => $_POST['navidrome_password']];
         }
 
         $db->commit();
@@ -242,6 +255,18 @@ $typeLabels = ['vps' => 'VPS', 'hosting' => 'Hebergement', 'navidrome' => 'Navid
                         <label class="form-label fw-semibold">Nom de domaine</label>
                         <input type="text" name="domain" class="form-control" placeholder="monsite.fr" required>
                         <div class="form-text">Le domaine doit pointer vers nos serveurs (NS seront fournis apres commande)</div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($product['type'] === 'navidrome'): ?>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Mot de passe Navidrome</label>
+                        <input type="password" name="navidrome_password" class="form-control" minlength="8" required placeholder="Minimum 8 caracteres">
+                        <div class="form-text">Ce mot de passe sera utilise pour vous connecter a Navidrome</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Confirmer le mot de passe</label>
+                        <input type="password" name="navidrome_password_confirm" class="form-control" minlength="8" required>
                     </div>
                     <?php endif; ?>
 
