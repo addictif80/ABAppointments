@@ -277,13 +277,23 @@ class ServiceManager {
 
             case 'navidrome':
                 $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subscriptionId]);
-                if ($nd && $nd['navidrome_user_id']) {
-                    // Restore original password on Navidrome
+                if ($nd) {
+                    $navidrome = new NavidromeAPI();
+                    $password = self::decryptPassword($nd['navidrome_password']);
                     try {
-                        $password = self::decryptPassword($nd['navidrome_password']);
-                        $navidrome = new NavidromeAPI();
+                        // Try to restore password on existing Navidrome user
                         $navidrome->changePassword($nd['navidrome_user_id'], $password);
-                    } catch (Exception $e) {}
+                    } catch (Exception $e) {
+                        // User may have been destroyed — recreate them
+                        try {
+                            $result = $navidrome->createUser($nd['navidrome_username'], $password, false);
+                            $db->update('wp_services_navidrome', [
+                                'navidrome_user_id' => $result['id']
+                            ], 'id = ?', [$nd['id']]);
+                        } catch (Exception $e2) {
+                            error_log("Navidrome unsuspend failed for sub $subscriptionId: " . $e2->getMessage());
+                        }
+                    }
                     $db->update('wp_services_navidrome', ['status' => 'active'], 'id = ?', [$nd['id']]);
                 }
                 break;
