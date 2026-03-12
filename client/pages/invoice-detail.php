@@ -8,21 +8,25 @@ $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ?
 if (!$invoice) { wp_flash('error', 'Facture introuvable.'); wp_redirect(wp_url('client/?page=invoices')); }
 
 // Check payment status on return from Stripe
+$debugInfo = [];
 if (isset($_GET['payment']) && $_GET['payment'] === 'success' && in_array($invoice['status'], ['pending', 'overdue'])) {
     $stripe = new StripeManager();
     $sessionId = $invoice['stripe_checkout_session_id'] ?? null;
+    $debugInfo[] = "configured=" . ($stripe->isConfigured() ? 'yes' : 'no');
+    $debugInfo[] = "sessionId=" . ($sessionId ?: 'NULL');
     if ($stripe->isConfigured() && !empty($sessionId)) {
         try {
             $session = $stripe->getCheckoutSession($sessionId);
+            $debugInfo[] = "payment_status=" . ($session['payment_status'] ?? 'missing');
+            $debugInfo[] = "payment_intent=" . ($session['payment_intent'] ?? 'missing');
             if ($session['payment_status'] === 'paid' && !empty($session['payment_intent'])) {
                 InvoiceManager::markPaid($invoiceId, 'stripe', $session['payment_intent']);
                 $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ?", [$invoiceId, $userId]);
+                $debugInfo[] = "markPaid called, new status=" . $invoice['status'];
             }
         } catch (Exception $e) {
-            error_log("Stripe payment verify error for invoice $invoiceId: " . $e->getMessage());
+            $debugInfo[] = "ERROR: " . $e->getMessage();
         }
-    } else {
-        error_log("Stripe verify skipped for invoice $invoiceId: configured=" . ($stripe->isConfigured() ? 'yes' : 'no') . " sessionId=" . ($sessionId ?: 'null'));
     }
     if (in_array($invoice['status'], ['pending', 'overdue'])) {
         $paymentPending = true;
@@ -86,6 +90,9 @@ $pageTitle = 'Facture ' . $invoice['invoice_number'];
                     </tfoot>
                 </table>
 
+                <?php if (!empty($debugInfo) && defined('DEBUG_MODE') && DEBUG_MODE): ?>
+                <div class="alert alert-warning"><strong>DEBUG:</strong> <?= implode(' | ', $debugInfo) ?></div>
+                <?php endif; ?>
                 <?php if (!empty($paymentPending)): ?>
                 <div class="alert alert-info text-center mt-4">
                     <i class="bi bi-hourglass-split me-2"></i>
