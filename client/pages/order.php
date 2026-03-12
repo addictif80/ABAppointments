@@ -303,25 +303,73 @@ $typeLabels = ['vps' => 'VPS', 'hosting' => 'Hebergement', 'navidrome' => 'Navid
 </div>
 
 <script>
+const prices = {
+    monthly: <?= (float)$product['price_monthly'] ?>,
+    yearly: <?= (float)($product['price_yearly'] ?: $product['price_monthly']) ?>,
+    setup: <?= (float)$product['setup_fee'] ?>,
+    taxRate: <?= (float)wp_setting('tax_rate', 20) ?>
+};
+let currentDiscount = 0;
+
+function formatPrice(amount) {
+    return amount.toFixed(2).replace('.', ',') + ' €';
+}
+
+function getSelectedPrice() {
+    const cycle = document.querySelector('input[name="billing_cycle"]:checked');
+    return cycle && cycle.value === 'yearly' ? prices.yearly : prices.monthly;
+}
+
+function updateTotal() {
+    const price = getSelectedPrice();
+    const subtotal = price + prices.setup;
+    const discount = currentDiscount;
+    const afterDiscount = Math.max(0, subtotal - discount);
+    const tax = afterDiscount * prices.taxRate / 100;
+    const total = afterDiscount + tax;
+
+    document.getElementById('price-display').textContent = formatPrice(price);
+    document.getElementById('total-display').textContent = formatPrice(total);
+}
+
 function validatePromo() {
     const code = document.getElementById('promoCodeInput').value.trim();
     const feedback = document.getElementById('promoFeedback');
     const discountRow = document.getElementById('discountRow');
-    if (!code) { feedback.innerHTML = ''; discountRow.style.cssText = 'display:none !important'; return; }
+    if (!code) {
+        feedback.innerHTML = '';
+        discountRow.style.cssText = 'display:none !important';
+        currentDiscount = 0;
+        updateTotal();
+        return;
+    }
 
     fetch('<?= wp_url('api/') ?>?action=validate-promo&code=' + encodeURIComponent(code) + '&product_id=<?= $product['id'] ?>')
         .then(r => r.json())
         .then(data => {
             if (data.valid) {
+                const price = getSelectedPrice();
+                const subtotal = price + prices.setup;
+                if (data.type === 'percentage') {
+                    currentDiscount = Math.round(subtotal * data.value) / 100;
+                } else {
+                    currentDiscount = Math.min(data.value, subtotal);
+                }
                 feedback.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> ' + data.message + '</span>';
                 discountRow.style.cssText = '';
-                document.getElementById('discountLabel').textContent = 'Remise (' + code + ')';
-                document.getElementById('discountDisplay').textContent = '-' + data.discount_preview;
+                document.getElementById('discountLabel').textContent = 'Remise (' + code.toUpperCase() + ')';
+                document.getElementById('discountDisplay').textContent = '-' + formatPrice(currentDiscount);
+                updateTotal();
             } else {
                 feedback.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + data.message + '</span>';
                 discountRow.style.cssText = 'display:none !important';
+                currentDiscount = 0;
+                updateTotal();
             }
         })
         .catch(() => { feedback.innerHTML = '<span class="text-danger">Erreur de verification.</span>'; });
 }
+
+// Recalculate when billing cycle changes
+document.querySelectorAll('input[name="billing_cycle"]').forEach(r => r.addEventListener('change', updateTotal));
 </script>

@@ -5,9 +5,20 @@ $userId = $_SESSION['user_id'];
 $invoiceId = (int)($_GET['id'] ?? 0);
 
 $invoice = $db->fetchOne("SELECT * FROM wp_invoices WHERE id = ? AND user_id = ? AND status IN ('pending','overdue')", [$invoiceId, $userId]);
-if (!$invoice) { wp_flash('error', 'Facture introuvable ou deja payee.'); wp_redirect(wp_url('client/?page=invoices')); }
+if (!$invoice) {
+    wp_flash('error', 'Facture introuvable ou deja payee.');
+    wp_redirect(wp_url('client/?page=invoices'));
+    exit;
+}
 
 $stripe = new StripeManager();
+
+if (!$stripe->isConfigured()) {
+    wp_flash('error', 'Le paiement en ligne n\'est pas encore configure. Contactez l\'administrateur.');
+    wp_redirect(wp_url("client/?page=invoice-detail&id=$invoiceId"));
+    exit;
+}
+
 $user = Auth::user();
 
 // Create or get Stripe customer
@@ -19,6 +30,7 @@ if (empty($user['stripe_customer_id'])) {
     } catch (Exception $e) {
         wp_flash('error', 'Erreur Stripe: ' . $e->getMessage());
         wp_redirect(wp_url("client/?page=invoice-detail&id=$invoiceId"));
+        exit;
     }
 }
 
@@ -32,10 +44,10 @@ try {
         ['invoice_id' => $invoiceId, 'user_id' => $userId]
     );
 
-    // Redirect to Stripe Checkout
     header('Location: ' . $session['url']);
     exit;
 } catch (Exception $e) {
     wp_flash('error', 'Erreur lors de la creation du paiement: ' . $e->getMessage());
     wp_redirect(wp_url("client/?page=invoice-detail&id=$invoiceId"));
+    exit;
 }
