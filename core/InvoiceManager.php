@@ -4,14 +4,14 @@
  */
 class InvoiceManager {
 
-    public static function create($userId, $subscriptionId, $items, $dueDate = null, $promoCodeId = null, $discountAmount = 0) {
+    public static function create($userId, $subscriptionId, $items, $dueDate = null, $promoCodeId = null, $discountAmount = 0, $taxExempt = false) {
         $db = Database::getInstance();
         $settings = new Settings();
 
         $prefix = $settings->get('invoice_prefix', 'INV-');
         $nextNum = (int)$settings->get('invoice_next_number', 1);
         $invoiceNumber = $prefix . str_pad($nextNum, 6, '0', STR_PAD_LEFT);
-        $taxRate = (float)$settings->get('tax_rate', 20);
+        $taxRate = $taxExempt ? 0 : (float)$settings->get('tax_rate', 20);
 
         if (!$dueDate) $dueDate = date('Y-m-d', strtotime('+15 days'));
 

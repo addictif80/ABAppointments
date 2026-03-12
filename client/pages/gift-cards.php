@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $invoiceId = InvoiceManager::create($userId, null, [
                     ['description' => 'Rechargement porte-monnaie - ' . wp_format_price($amount), 'unit_price' => $amount, 'quantity' => 1]
-                ]);
+                ], null, null, 0, true);
                 // Store that this invoice is a wallet topup
                 $db->update('wp_invoices', ['notes' => 'wallet_topup:' . $amount], 'id = ?', [$invoiceId]);
                 $db->commit();
