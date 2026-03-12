@@ -81,6 +81,10 @@ function wp_flash($type, $message = null) {
 }
 
 function wp_redirect($url) {
+    if (headers_sent()) {
+        echo '<script>window.location.href=' . json_encode($url) . ';</script>';
+        exit;
+    }
     header('Location: ' . $url);
     exit;
 }
