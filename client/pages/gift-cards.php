@@ -66,9 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $db->beginTransaction();
             try {
+                // Prix TTC : calculer le montant HT pour que le total avec TVA = montant demandé
+                $settings = new Settings();
+                $taxRate = (float)$settings->get('tax_rate', 20);
+                $unitPriceHT = round($amount / (1 + $taxRate / 100), 2);
+
                 $invoiceId = InvoiceManager::create($userId, null, [
-                    ['description' => 'Rechargement porte-monnaie - ' . wp_format_price($amount), 'unit_price' => $amount, 'quantity' => 1]
-                ], null, null, 0, true);
+                    ['description' => 'Rechargement porte-monnaie - ' . wp_format_price($amount), 'unit_price' => $unitPriceHT, 'quantity' => 1]
+                ]);
                 // Store that this invoice is a wallet topup
                 $db->update('wp_invoices', ['notes' => 'wallet_topup:' . $amount], 'id = ?', [$invoiceId]);
                 $db->commit();
