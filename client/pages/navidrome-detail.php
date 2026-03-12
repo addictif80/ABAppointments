@@ -11,7 +11,35 @@ $sub = $db->fetchOne(
 if (!$sub) { wp_flash('error', 'Service introuvable.'); wp_redirect(wp_url('client/?page=subscriptions')); }
 
 $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subId]);
-if (!$nd) { wp_flash('error', 'Service Navidrome non provisionne.'); wp_redirect(wp_url('client/?page=subscriptions')); }
+
+// Auto-provision if subscription is active but service doesn't exist
+if (!$nd && $sub['status'] === 'active') {
+    try {
+        ServiceManager::provisionService($subId);
+        $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subId]);
+    } catch (Exception $e) {
+        error_log("Navidrome auto-provision failed for sub $subId: " . $e->getMessage());
+    }
+}
+
+if (!$nd) { wp_flash('error', 'Service Navidrome non provisionne. Veuillez contacter le support.'); wp_redirect(wp_url('client/?page=subscriptions')); }
+
+// If service is in error state, show retry option
+if ($nd['status'] === 'error') {
+    if (isset($_GET['retry_provision'])) {
+        try {
+            $db->delete('wp_services_navidrome', 'id = ?', [$nd['id']]);
+            ServiceManager::provisionService($subId);
+            $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subId]);
+            if ($nd && $nd['status'] === 'active') {
+                wp_flash('success', 'Service Navidrome provisionne avec succes !');
+            }
+        } catch (Exception $e) {
+            wp_flash('error', 'Echec du provisioning : ' . $e->getMessage());
+            $nd = $db->fetchOne("SELECT * FROM wp_services_navidrome WHERE subscription_id = ?", [$subId]);
+        }
+    }
+}
 
 $password = ServiceManager::decryptPassword($nd['navidrome_password']);
 $navidromeUrl = wp_setting('navidrome_url', '#');
@@ -36,7 +64,14 @@ $statusColors = ['active' => 'success', 'creating' => 'info', 'suspended' => 'wa
                     <h4><?= wp_escape($nd['navidrome_username']) ?></h4>
                     <p class="text-muted"><?= wp_escape($sub['product_name']) ?></p>
 
-                    <?php if ($nd['status'] === 'active'): ?>
+                    <?php if ($nd['status'] === 'error'): ?>
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i> Le provisioning du service a echoue.
+                        <a href="<?= wp_url("client/?page=navidrome-detail&id={$sub['id']}&retry_provision=1") ?>" class="btn btn-warning btn-sm ms-2">
+                            <i class="bi bi-arrow-clockwise me-1"></i> Reessayer
+                        </a>
+                    </div>
+                    <?php elseif ($nd['status'] === 'active'): ?>
                     <a href="<?= wp_escape($navidromeUrl) ?>" target="_blank" class="btn btn-primary btn-lg">
                         <i class="bi bi-play-circle me-2"></i> Ouvrir Navidrome
                     </a>
