@@ -7,7 +7,7 @@ class ServiceManager {
     public static function provisionService($subscriptionId) {
         $db = Database::getInstance();
         $sub = $db->fetchOne(
-            "SELECT s.*, p.*, s.id as id, s.name as name, s.status as status FROM wp_subscriptions s JOIN wp_products p ON s.product_id = p.id WHERE s.id = ?",
+            "SELECT s.*, p.*, s.id as id, s.status as status, p.name as name FROM wp_subscriptions s JOIN wp_products p ON s.product_id = p.id WHERE s.id = ?",
             [$subscriptionId]
         );
         if (!$sub) throw new Exception("Subscription not found");
