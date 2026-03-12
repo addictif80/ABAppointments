@@ -5,6 +5,7 @@
 class Database {
     private static $instance = null;
     private $pdo;
+    private $transactionDepth = 0;
 
     private function __construct() {
         $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4';
@@ -63,9 +64,31 @@ class Database {
         return (int)$this->fetchColumn("SELECT COUNT(*) FROM `$table` WHERE $where", $params);
     }
 
-    public function beginTransaction() { return $this->pdo->beginTransaction(); }
-    public function commit() { return $this->pdo->commit(); }
-    public function rollback() { return $this->pdo->rollBack(); }
+    public function beginTransaction() {
+        if ($this->transactionDepth === 0) {
+            $this->pdo->beginTransaction();
+        }
+        $this->transactionDepth++;
+        return true;
+    }
+
+    public function commit() {
+        $this->transactionDepth--;
+        if ($this->transactionDepth === 0) {
+            return $this->pdo->commit();
+        }
+        return true;
+    }
+
+    public function rollback() {
+        if ($this->transactionDepth > 0) {
+            $this->transactionDepth = 0;
+            return $this->pdo->rollBack();
+        }
+        return true;
+    }
+
+    public function inTransaction() { return $this->transactionDepth > 0; }
     public function lastInsertId() { return $this->pdo->lastInsertId(); }
 
     private function __clone() {}
