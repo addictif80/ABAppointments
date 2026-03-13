@@ -1,0 +1,143 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Tâches Cron{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Gestionnaire de tâches Cron</h2>
+        <button onclick="document.getElementById('cron-modal').classList.remove('hidden')"
+            class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-plus mr-2"></i>Ajouter
+        </button>
+    </div>
+
+    <div class="bg-dark-900 rounded-xl border border-gray-800 overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-800 text-left">
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Planning</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Commande</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="cron-table">
+                <tr><td colspan="3" class="px-5 py-8 text-center text-gray-500">Chargement...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Add cron modal -->
+    <div id="cron-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-lg mx-4">
+            <h3 class="text-lg font-semibold text-white mb-4">Ajouter une tâche Cron</h3>
+
+            <div class="mb-4">
+                <label class="block text-sm text-gray-400 mb-2">Préréglages rapides</label>
+                <div class="flex flex-wrap gap-2" id="cron-presets"></div>
+            </div>
+
+            <form id="cron-form" class="space-y-3">
+                <div class="grid grid-cols-5 gap-2">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Minute</label>
+                        <input type="text" id="cron-min" value="*" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-2 py-2 text-white text-sm text-center focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Heure</label>
+                        <input type="text" id="cron-hour" value="*" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-2 py-2 text-white text-sm text-center focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Jour</label>
+                        <input type="text" id="cron-day" value="*" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-2 py-2 text-white text-sm text-center focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Mois</label>
+                        <input type="text" id="cron-month" value="*" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-2 py-2 text-white text-sm text-center focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Jour sem.</label>
+                        <input type="text" id="cron-weekday" value="*" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-2 py-2 text-white text-sm text-center focus:outline-none focus:border-primary-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Commande</label>
+                    <input type="text" id="cron-command" required placeholder="/usr/bin/php /var/www/cron.php"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('cron-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadCron() {
+        const r = await apiGet('/api/addons/cron/');
+        const tbody = document.getElementById('cron-table');
+        if (!r?.jobs?.length) {
+            tbody.innerHTML = '<tr><td colspan="3" class="px-5 py-8 text-center text-gray-500">Aucune tâche cron</td></tr>';
+            return;
+        }
+        tbody.innerHTML = r.jobs.map(j => `
+            <tr class="border-b border-gray-800/50 hover:bg-dark-800/50">
+                <td class="px-5 py-3 font-mono text-sm text-primary-400">${j.minute} ${j.hour} ${j.day} ${j.month} ${j.weekday}</td>
+                <td class="px-5 py-3 font-mono text-sm text-gray-300 truncate max-w-md">${j.command}</td>
+                <td class="px-5 py-3">
+                    <button onclick="deleteCron(${j.id})" class="text-red-400 hover:text-red-300 text-sm"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    (async () => {
+        const presets = await apiGet('/api/addons/cron/presets');
+        if (presets) {
+            document.getElementById('cron-presets').innerHTML = presets.map(p => `
+                <button type="button" onclick="applyPreset('${p.minute}','${p.hour}','${p.day}','${p.month}','${p.weekday}')"
+                    class="bg-dark-800 border border-gray-700 text-gray-400 text-xs px-3 py-1.5 rounded-lg hover:text-white hover:border-primary-500">
+                    ${p.label}
+                </button>
+            `).join('');
+        }
+    })();
+
+    function applyPreset(min, hour, day, month, weekday) {
+        document.getElementById('cron-min').value = min;
+        document.getElementById('cron-hour').value = hour;
+        document.getElementById('cron-day').value = day;
+        document.getElementById('cron-month').value = month;
+        document.getElementById('cron-weekday').value = weekday;
+    }
+
+    document.getElementById('cron-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const r = await apiPost('/api/addons/cron/', {
+            minute: document.getElementById('cron-min').value,
+            hour: document.getElementById('cron-hour').value,
+            day: document.getElementById('cron-day').value,
+            month: document.getElementById('cron-month').value,
+            weekday: document.getElementById('cron-weekday').value,
+            command: document.getElementById('cron-command').value,
+        });
+        document.getElementById('cron-modal').classList.add('hidden');
+        showToast(r?.message || 'Tâche ajoutée', r?.success ? 'success' : 'error');
+        loadCron();
+    });
+
+    async function deleteCron(id) {
+        if (!confirm('Supprimer cette tâche ?')) return;
+        await apiDelete(`/api/addons/cron/${id}`);
+        showToast('Tâche supprimée');
+        loadCron();
+    }
+
+    loadCron();
+</script>
+{% endblock %}

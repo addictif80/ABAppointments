@@ -1,0 +1,128 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Git Manager{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Git Manager</h2>
+        <button onclick="document.getElementById('clone-modal').classList.remove('hidden')"
+            class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-code-branch mr-2"></i>Cloner un dépôt
+        </button>
+    </div>
+
+    <div class="mb-4">
+        <select id="git-domain" onchange="loadGitInfo()"
+            class="bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 w-full max-w-md">
+            <option value="">Sélectionner un site...</option>
+        </select>
+    </div>
+
+    <div id="git-info" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Dépôt</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-gray-500">Branche</span><span class="text-white" id="git-branch">-</span></div>
+                    <div><span class="text-gray-500">Remote</span><p class="text-white font-mono text-xs mt-1 break-all" id="git-remote">-</p></div>
+                    <div><span class="text-gray-500">Statut</span><pre class="text-gray-300 font-mono text-xs mt-1" id="git-status">-</pre></div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button onclick="pullRepo()" class="flex-1 bg-green-900/30 text-green-400 hover:bg-green-900/50 text-sm py-2 rounded-lg">
+                        <i class="fas fa-download mr-1"></i>Pull
+                    </button>
+                </div>
+            </div>
+            <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Commits récents</h3>
+                <div id="git-commits" class="space-y-1 max-h-64 overflow-y-auto text-sm font-mono"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="git-no-repo" class="hidden bg-dark-900 rounded-xl border border-gray-800 p-8 text-center">
+        <i class="fab fa-git-alt text-4xl text-gray-600 mb-4"></i>
+        <p class="text-gray-500">Aucun dépôt Git sur ce site</p>
+    </div>
+
+    <!-- Clone modal -->
+    <div id="clone-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-white mb-4">Cloner un dépôt</h3>
+            <form id="clone-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">URL du dépôt</label>
+                    <input type="text" id="clone-url" required placeholder="https://github.com/user/repo.git"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Site de destination</label>
+                    <select id="clone-domain" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500"></select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Branche</label>
+                    <input type="text" id="clone-branch" value="main" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('clone-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Cloner</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (async () => {
+        const websites = await apiGet('/api/websites/');
+        if (websites) {
+            ['git-domain', 'clone-domain'].forEach(id => {
+                const sel = document.getElementById(id);
+                websites.forEach(w => { const o = document.createElement('option'); o.value = w.domain; o.textContent = w.domain; sel.appendChild(o); });
+            });
+        }
+    })();
+
+    async function loadGitInfo() {
+        const domain = document.getElementById('git-domain').value;
+        if (!domain) return;
+        const info = await apiGet(`/api/addons/git/info/${domain}`);
+        if (info && info.has_repo) {
+            document.getElementById('git-info').classList.remove('hidden');
+            document.getElementById('git-no-repo').classList.add('hidden');
+            document.getElementById('git-branch').textContent = info.branch;
+            document.getElementById('git-remote').textContent = info.remote_url;
+            document.getElementById('git-status').textContent = info.status || 'Clean';
+            document.getElementById('git-commits').innerHTML = info.recent_commits.map(c =>
+                `<div class="py-1 px-2 rounded bg-dark-800 text-gray-300 text-xs">${c}</div>`
+            ).join('');
+        } else {
+            document.getElementById('git-info').classList.add('hidden');
+            document.getElementById('git-no-repo').classList.remove('hidden');
+        }
+    }
+
+    async function pullRepo() {
+        const domain = document.getElementById('git-domain').value;
+        const r = await apiPost(`/api/addons/git/pull/${domain}`, {});
+        showToast(r?.success ? 'Pull réussi' : (r?.error || 'Erreur'), r?.success ? 'success' : 'error');
+        loadGitInfo();
+    }
+
+    document.getElementById('clone-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        showToast('Clonage en cours...', 'info');
+        const r = await apiPost('/api/addons/git/clone', {
+            repo_url: document.getElementById('clone-url').value,
+            domain: document.getElementById('clone-domain').value,
+            branch: document.getElementById('clone-branch').value,
+        });
+        document.getElementById('clone-modal').classList.add('hidden');
+        showToast(r?.success ? 'Dépôt cloné' : (r?.error || 'Erreur'), r?.success ? 'success' : 'error');
+    });
+</script>
+{% endblock %}

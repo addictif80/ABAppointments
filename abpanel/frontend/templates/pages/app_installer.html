@@ -1,0 +1,67 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - App Installer{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="mb-6">
+        <h2 class="text-xl font-bold text-white">Installateur d'applications</h2>
+        <p class="text-gray-500 text-sm mt-1">Installez des applications en un clic sur vos sites web</p>
+    </div>
+
+    <div class="mb-4">
+        <select id="app-domain"
+            class="bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 w-full max-w-md">
+            <option value="">Sélectionner un site de destination...</option>
+        </select>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="apps-grid">
+        <div class="text-gray-500">Chargement...</div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (async () => {
+        const websites = await apiGet('/api/websites/');
+        if (websites) {
+            const sel = document.getElementById('app-domain');
+            websites.forEach(w => { const o = document.createElement('option'); o.value = w.domain; o.textContent = w.domain; sel.appendChild(o); });
+        }
+    })();
+
+    (async () => {
+        const apps = await apiGet('/api/addons/apps/available');
+        if (!apps) return;
+        document.getElementById('apps-grid').innerHTML = apps.map(a => `
+            <div class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 bg-primary-900/30 rounded-lg flex items-center justify-center">
+                        <i class="${a.icon} text-primary-400"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-medium">${a.name}</h3>
+                        <p class="text-gray-500 text-xs">${a.description}</p>
+                    </div>
+                </div>
+                <button onclick="installApp('${a.key}', '${a.name}')"
+                    class="w-full bg-primary-600/20 text-primary-400 hover:bg-primary-600/30 text-sm py-2 rounded-lg transition-colors">
+                    <i class="fas fa-download mr-1"></i>Installer
+                </button>
+            </div>
+        `).join('');
+    })();
+
+    async function installApp(key, name) {
+        const domain = document.getElementById('app-domain').value;
+        if (!domain) { showToast('Sélectionnez un site d\'abord', 'error'); return; }
+        if (!confirm(`Installer ${name} sur ${domain} ?`)) return;
+        showToast(`Installation de ${name}...`, 'info');
+        const r = await apiPost('/api/addons/apps/install', { app_key: key, domain });
+        showToast(r?.message || r?.error || 'Terminé', r?.success ? 'success' : 'error');
+    }
+</script>
+{% endblock %}

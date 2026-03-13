@@ -1,0 +1,111 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Limites de ressources{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Limites de ressources</h2>
+    </div>
+
+    <!-- System info -->
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5 mb-4">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Système</h3>
+        <div class="grid grid-cols-3 gap-4 text-sm" id="sys-info">
+            <div class="text-gray-500">Chargement...</div>
+        </div>
+    </div>
+
+    <!-- Set limits -->
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Définir des limites</h3>
+        <form id="limits-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Utilisateur</label>
+                    <input type="text" id="lim-user" required placeholder="www-data"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">CPU (%)</label>
+                    <input type="number" id="lim-cpu" value="100" min="1" max="400"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Mémoire (MB)</label>
+                    <input type="number" id="lim-mem" value="1024" min="64"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">IO Weight</label>
+                    <input type="number" id="lim-io" value="100" min="1" max="100"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Max processes</label>
+                    <input type="number" id="lim-procs" value="100" min="1"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+                    <i class="fas fa-save mr-1"></i>Appliquer
+                </button>
+                <button type="button" onclick="checkLimits()" class="bg-dark-800 border border-gray-700 text-gray-400 text-sm px-4 py-2 rounded-lg hover:text-white">
+                    <i class="fas fa-search mr-1"></i>Vérifier
+                </button>
+                <button type="button" onclick="removeLimits()" class="bg-red-900/30 text-red-400 hover:bg-red-900/50 text-sm px-4 py-2 rounded-lg">
+                    <i class="fas fa-trash mr-1"></i>Supprimer
+                </button>
+            </div>
+        </form>
+
+        <div id="limits-result" class="hidden mt-4 p-4 bg-dark-800 rounded-lg">
+            <pre class="text-sm text-gray-300 font-mono" id="limits-output"></pre>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (async () => {
+        const s = await apiGet('/api/addons/resources/system');
+        if (s?.success) {
+            document.getElementById('sys-info').innerHTML = `
+                <div><span class="text-gray-500">CPU</span><p class="text-white">${s.cpu_count} coeurs</p></div>
+                <div><span class="text-gray-500">Mémoire</span><p class="text-white">${formatBytes(s.total_memory_bytes)}</p></div>
+                <div><span class="text-gray-500">cgroups v2</span><p class="${s.cgroup_v2 ? 'text-green-400' : 'text-red-400'}">${s.cgroup_v2 ? 'Supporté' : 'Non disponible'}</p></div>
+            `;
+        }
+    })();
+
+    document.getElementById('limits-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const r = await apiPost('/api/addons/resources/user', {
+            username: document.getElementById('lim-user').value,
+            cpu_percent: parseInt(document.getElementById('lim-cpu').value),
+            memory_mb: parseInt(document.getElementById('lim-mem').value),
+            io_weight: parseInt(document.getElementById('lim-io').value),
+            max_processes: parseInt(document.getElementById('lim-procs').value),
+        });
+        showToast(r?.message || 'Limites appliquées', r?.success ? 'success' : 'error');
+    });
+
+    async function checkLimits() {
+        const user = document.getElementById('lim-user').value;
+        if (!user) return;
+        const r = await apiGet(`/api/addons/resources/user/${user}`);
+        document.getElementById('limits-output').textContent = JSON.stringify(r?.limits || r, null, 2);
+        document.getElementById('limits-result').classList.remove('hidden');
+    }
+
+    async function removeLimits() {
+        const user = document.getElementById('lim-user').value;
+        if (!user || !confirm(`Supprimer les limites de ${user} ?`)) return;
+        const r = await apiDelete(`/api/addons/resources/user/${user}`);
+        showToast(r?.message || 'Terminé', r?.success ? 'success' : 'error');
+    }
+</script>
+{% endblock %}

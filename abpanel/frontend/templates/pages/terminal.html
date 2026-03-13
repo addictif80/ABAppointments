@@ -1,0 +1,97 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Terminal SSH{% endblock %}
+
+{% block extra_head %}
+<style>
+    #terminal-output { font-family: 'Courier New', monospace; }
+    #terminal-output .cmd { color: #60a5fa; }
+    #terminal-output .stdout { color: #d1d5db; }
+    #terminal-output .stderr { color: #f87171; }
+</style>
+{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Terminal SSH</h2>
+        <span class="text-xs text-gray-500" id="terminal-cwd">/root</span>
+    </div>
+
+    <div class="bg-dark-950 rounded-xl border border-gray-800 p-4">
+        <div id="terminal-output" class="h-[60vh] overflow-y-auto text-sm leading-relaxed mb-4 space-y-1">
+            <div class="text-gray-500">Bienvenue dans le terminal ABPanel. Tapez vos commandes ci-dessous.</div>
+        </div>
+
+        <div class="flex gap-2">
+            <span class="text-green-400 text-sm font-mono py-2">root@abpanel:~$</span>
+            <input type="text" id="terminal-input" autofocus
+                class="flex-1 bg-transparent border-none text-white font-mono text-sm focus:outline-none"
+                placeholder="Tapez une commande...">
+            <button onclick="executeCmd()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm px-4 py-2 rounded-lg">
+                <i class="fas fa-play"></i>
+            </button>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const output = document.getElementById('terminal-output');
+    const input = document.getElementById('terminal-input');
+    let cwd = '/root';
+    let history = [];
+    let historyIndex = -1;
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') executeCmd();
+        else if (e.key === 'ArrowUp') {
+            if (historyIndex < history.length - 1) { historyIndex++; input.value = history[history.length - 1 - historyIndex]; }
+        } else if (e.key === 'ArrowDown') {
+            if (historyIndex > 0) { historyIndex--; input.value = history[history.length - 1 - historyIndex]; }
+            else { historyIndex = -1; input.value = ''; }
+        }
+    });
+
+    async function executeCmd() {
+        const cmd = input.value.trim();
+        if (!cmd) return;
+
+        history.push(cmd);
+        historyIndex = -1;
+        input.value = '';
+
+        // Show command
+        output.innerHTML += `<div><span class="text-green-400">root@abpanel</span>:<span class="text-blue-400">${cwd}</span>$ <span class="cmd">${escapeHtml(cmd)}</span></div>`;
+
+        // Handle cd locally
+        if (cmd.startsWith('cd ')) {
+            const dir = cmd.substring(3).trim();
+            if (dir === '~' || dir === '') cwd = '/root';
+            else if (dir.startsWith('/')) cwd = dir;
+            else cwd = cwd + '/' + dir;
+            document.getElementById('terminal-cwd').textContent = cwd;
+            output.scrollTop = output.scrollHeight;
+            return;
+        }
+
+        if (cmd === 'clear') { output.innerHTML = ''; return; }
+
+        const r = await apiPost('/api/addons/terminal/execute', { command: cmd, cwd });
+
+        if (r?.stdout) output.innerHTML += `<div class="stdout whitespace-pre-wrap">${escapeHtml(r.stdout)}</div>`;
+        if (r?.stderr) output.innerHTML += `<div class="stderr whitespace-pre-wrap">${escapeHtml(r.stderr)}</div>`;
+        if (r?.error) output.innerHTML += `<div class="stderr">${escapeHtml(r.error)}</div>`;
+
+        output.scrollTop = output.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    input.focus();
+</script>
+{% endblock %}

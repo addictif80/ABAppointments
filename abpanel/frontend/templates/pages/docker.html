@@ -1,0 +1,172 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Docker Manager{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Docker Manager</h2>
+        <button onclick="document.getElementById('deploy-modal').classList.remove('hidden')"
+            class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-rocket mr-2"></i>Déployer une app
+        </button>
+    </div>
+
+    <!-- Docker status -->
+    <div id="docker-status" class="bg-dark-900 rounded-xl border border-gray-800 p-5 mb-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Statut Docker</h3>
+                <p class="text-white mt-1" id="docker-status-text">Vérification...</p>
+            </div>
+            <button id="docker-install-btn" onclick="installDocker()" class="hidden bg-green-700 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-lg">
+                <i class="fas fa-download mr-2"></i>Installer Docker
+            </button>
+        </div>
+    </div>
+
+    <!-- Containers -->
+    <div class="bg-dark-900 rounded-xl border border-gray-800 overflow-hidden mb-4">
+        <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase">Conteneurs</h3>
+            <button onclick="loadContainers()" class="text-gray-500 hover:text-white text-sm"><i class="fas fa-sync"></i></button>
+        </div>
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-800 text-left">
+                    <th class="px-5 py-2 text-xs font-semibold text-gray-500 uppercase">Nom</th>
+                    <th class="px-5 py-2 text-xs font-semibold text-gray-500 uppercase">Image</th>
+                    <th class="px-5 py-2 text-xs font-semibold text-gray-500 uppercase">Statut</th>
+                    <th class="px-5 py-2 text-xs font-semibold text-gray-500 uppercase">Ports</th>
+                    <th class="px-5 py-2 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="containers-table">
+                <tr><td colspan="5" class="px-5 py-6 text-center text-gray-500">Chargement...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- One-Click Apps -->
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Applications One-Click</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" id="oneclick-apps"></div>
+    </div>
+
+    <!-- Deploy modal -->
+    <div id="deploy-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-white mb-4">Déployer un conteneur</h3>
+            <form id="deploy-form" class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Nom</label>
+                    <input type="text" id="ct-name" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Image</label>
+                    <input type="text" id="ct-image" required placeholder="nginx:latest" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Ports (ex: 8080:80,443:443)</label>
+                    <input type="text" id="ct-ports" placeholder="8080:80" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('deploy-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Déployer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadDockerStatus() {
+        const s = await apiGet('/api/addons/docker/status');
+        if (!s) return;
+        if (!s.installed) {
+            document.getElementById('docker-status-text').textContent = 'Docker non installé';
+            document.getElementById('docker-install-btn').classList.remove('hidden');
+        } else {
+            document.getElementById('docker-status-text').innerHTML =
+                `<span class="text-green-400">Actif</span> - v${s.version} | ${s.containers_running} conteneurs actifs | ${s.images} images`;
+        }
+    }
+
+    async function installDocker() {
+        showToast('Installation de Docker...', 'info');
+        const r = await apiPost('/api/addons/docker/install', {});
+        showToast(r?.message || 'Terminé', r?.success ? 'success' : 'error');
+        loadDockerStatus();
+    }
+
+    async function loadContainers() {
+        const r = await apiGet('/api/addons/docker/containers');
+        const tbody = document.getElementById('containers-table');
+        if (!r?.containers?.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-6 text-center text-gray-500">Aucun conteneur</td></tr>';
+            return;
+        }
+        tbody.innerHTML = r.containers.map(c => `
+            <tr class="border-b border-gray-800/50 hover:bg-dark-800/50">
+                <td class="px-5 py-2 text-white text-sm">${c.Names}</td>
+                <td class="px-5 py-2 text-gray-400 text-sm">${c.Image}</td>
+                <td class="px-5 py-2"><span class="${c.State === 'running' ? 'text-green-400' : 'text-red-400'} text-sm">${c.Status}</span></td>
+                <td class="px-5 py-2 text-gray-500 text-xs font-mono">${c.Ports || '-'}</td>
+                <td class="px-5 py-2 flex gap-2">
+                    ${c.State === 'running'
+                        ? `<button onclick="ctAction('${c.ID}','stop')" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-stop"></i></button>
+                           <button onclick="ctAction('${c.ID}','restart')" class="text-yellow-400 hover:text-yellow-300 text-xs"><i class="fas fa-redo"></i></button>`
+                        : `<button onclick="ctAction('${c.ID}','start')" class="text-green-400 hover:text-green-300 text-xs"><i class="fas fa-play"></i></button>`}
+                    <button onclick="ctAction('${c.ID}','rm')" class="text-gray-500 hover:text-red-400 text-xs"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function ctAction(id, action) {
+        await apiPost('/api/addons/docker/action', { container_id: id, action });
+        showToast(`${action} effectué`);
+        setTimeout(loadContainers, 1000);
+    }
+
+    async function loadOneClickApps() {
+        const apps = await apiGet('/api/addons/docker/apps');
+        if (!apps) return;
+        document.getElementById('oneclick-apps').innerHTML = apps.map(a => `
+            <button onclick="deployApp('${a.key}')"
+                class="bg-dark-800 border border-gray-700 rounded-lg p-4 text-left hover:border-primary-500 transition-colors">
+                <p class="text-white font-medium text-sm">${a.name}</p>
+                <p class="text-gray-500 text-xs mt-1">${a.description}</p>
+            </button>
+        `).join('');
+    }
+
+    async function deployApp(key) {
+        if (!confirm(`Déployer ${key} ?`)) return;
+        showToast('Déploiement en cours...', 'info');
+        const r = await apiPost('/api/addons/docker/deploy', { app_key: key });
+        showToast(r?.success ? 'App déployée' : (r?.error || 'Erreur'), r?.success ? 'success' : 'error');
+        loadContainers();
+    }
+
+    document.getElementById('deploy-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const ports = document.getElementById('ct-ports').value;
+        const r = await apiPost('/api/addons/docker/create', {
+            name: document.getElementById('ct-name').value,
+            image: document.getElementById('ct-image').value,
+            ports: ports ? ports.split(',').map(p => p.trim()) : null,
+        });
+        document.getElementById('deploy-modal').classList.add('hidden');
+        showToast(r?.success ? 'Conteneur créé' : (r?.error || 'Erreur'), r?.success ? 'success' : 'error');
+        loadContainers();
+    });
+
+    loadDockerStatus();
+    loadContainers();
+    loadOneClickApps();
+</script>
+{% endblock %}

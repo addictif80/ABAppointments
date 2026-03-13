@@ -1,0 +1,103 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Add-ons{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="mb-6">
+        <h2 class="text-xl font-bold text-white">Add-ons</h2>
+        <p class="text-gray-500 text-sm mt-1">Extensions disponibles pour votre serveur</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <a href="/wordpress-manager" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-blue-900/30 rounded-lg flex items-center justify-center"><i class="fab fa-wordpress text-blue-400"></i></div>
+                <h3 class="text-white font-medium">WordPress Manager</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Installation, staging, mises à jour auto, gestion plugins/thèmes</p>
+        </a>
+
+        <a href="/docker-manager" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-blue-900/30 rounded-lg flex items-center justify-center"><i class="fab fa-docker text-blue-400"></i></div>
+                <h3 class="text-white font-medium">Docker Manager</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Conteneurs, images, 12+ apps one-click (Redis, MongoDB, n8n...)</p>
+        </a>
+
+        <a href="/git-manager" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-orange-900/30 rounded-lg flex items-center justify-center"><i class="fab fa-git-alt text-orange-400"></i></div>
+                <h3 class="text-white font-medium">Git Manager</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Cloner des dépôts, déploiement Git, webhooks</p>
+        </a>
+
+        <a href="/app-installer" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-green-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-download text-green-400"></i></div>
+                <h3 class="text-white font-medium">App Installer</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Joomla, PrestaShop, Drupal, Mautic, Laravel, Nextcloud, Matomo...</p>
+        </a>
+
+        <a href="/modsecurity-page" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-red-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-user-shield text-red-400"></i></div>
+                <h3 class="text-white font-medium">ModSecurity WAF</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Pare-feu applicatif web avec règles OWASP CRS</p>
+        </a>
+
+        <a href="/rspamd-page" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-purple-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-mail-bulk text-purple-400"></i></div>
+                <h3 class="text-white font-medium">Rspamd</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Filtre anti-spam, DKIM, apprentissage bayésien</p>
+        </a>
+
+        <a href="/email-debugger" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-yellow-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-bug text-yellow-400"></i></div>
+                <h3 class="text-white font-medium">Email Debugger</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Diagnostic email, test d'envoi, gestion file d'attente</p>
+        </a>
+
+        <a href="/terminal" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center"><i class="fas fa-terminal text-green-400"></i></div>
+                <h3 class="text-white font-medium">Terminal SSH</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Terminal web pour exécuter des commandes shell</p>
+        </a>
+
+        <a href="/cron-manager" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-indigo-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-clock text-indigo-400"></i></div>
+                <h3 class="text-white font-medium">Tâches Cron</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Gestion des tâches planifiées avec préréglages</p>
+        </a>
+
+        <a href="/resource-limits" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-cyan-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-tachometer-alt text-cyan-400"></i></div>
+                <h3 class="text-white font-medium">Limites de ressources</h3>
+            </div>
+            <p class="text-gray-500 text-sm">CPU, mémoire, IO, processus par utilisateur (cgroups v2)</p>
+        </a>
+
+        <a href="/remote-backups" class="bg-dark-900 rounded-xl border border-gray-800 p-5 hover:border-primary-500/50 transition-colors block">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-teal-900/30 rounded-lg flex items-center justify-center"><i class="fas fa-cloud-upload-alt text-teal-400"></i></div>
+                <h3 class="text-white font-medium">Backup distant</h3>
+            </div>
+            <p class="text-gray-500 text-sm">Sauvegarde vers Amazon S3, SFTP, Google Drive</p>
+        </a>
+    </div>
+</main>
+{% endblock %}

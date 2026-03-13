@@ -1,0 +1,131 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Sauvegardes distantes{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Sauvegardes distantes</h2>
+    </div>
+
+    <!-- Configured remotes -->
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5 mb-4">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Destinations configurées</h3>
+        <div id="remotes-list" class="text-gray-500 text-sm">Chargement...</div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <!-- S3 config -->
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Amazon S3 / MinIO</h3>
+            <form id="s3-form" class="space-y-3">
+                <input type="text" id="s3-bucket" placeholder="Nom du bucket" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <input type="text" id="s3-key" placeholder="Access Key" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <input type="password" id="s3-secret" placeholder="Secret Key" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="s3-region" value="us-east-1" placeholder="Région" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                    <input type="text" id="s3-endpoint" placeholder="Endpoint (optionnel)" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white text-sm py-2 rounded-lg">Configurer S3</button>
+            </form>
+        </div>
+
+        <!-- SFTP config -->
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">SFTP</h3>
+            <form id="sftp-form" class="space-y-3">
+                <div class="grid grid-cols-3 gap-2">
+                    <input type="text" id="sftp-host" placeholder="Hôte" class="col-span-2 bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                    <input type="number" id="sftp-port" value="22" placeholder="Port" class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                </div>
+                <input type="text" id="sftp-user" placeholder="Utilisateur" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <input type="password" id="sftp-pass" placeholder="Mot de passe" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <input type="text" id="sftp-path" value="/backups" placeholder="Chemin distant" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white text-sm py-2 rounded-lg">Configurer SFTP</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Backup to remote -->
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Sauvegarder vers distant</h3>
+        <div class="flex gap-3">
+            <select id="rb-domain" class="flex-1 bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <option value="">Sélectionner un site...</option>
+            </select>
+            <select id="rb-dest" class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <option value="s3">S3</option>
+                <option value="sftp">SFTP</option>
+            </select>
+            <button onclick="backupToRemote()" class="bg-green-700 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-lg">
+                <i class="fas fa-upload mr-1"></i>Sauvegarder
+            </button>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (async () => {
+        const websites = await apiGet('/api/websites/');
+        if (websites) {
+            const sel = document.getElementById('rb-domain');
+            websites.forEach(w => { const o = document.createElement('option'); o.value = w.domain; o.textContent = w.domain; sel.appendChild(o); });
+        }
+    })();
+
+    async function loadRemotes() {
+        const r = await apiGet('/api/addons/remote-backup/remotes');
+        const el = document.getElementById('remotes-list');
+        if (!r?.remotes?.length) { el.textContent = 'Aucune destination configurée'; return; }
+        el.innerHTML = r.remotes.map(rem => `
+            <div class="flex items-center gap-3 py-2 px-3 rounded-lg bg-dark-800 mb-2">
+                <i class="fas ${rem.type === 's3' ? 'fa-cloud' : rem.type === 'sftp' ? 'fa-server' : 'fa-hdd'} text-primary-400"></i>
+                <div>
+                    <span class="text-white font-medium">${rem.type.toUpperCase()}</span>
+                    <span class="text-gray-500 text-xs ml-2">${rem.bucket || rem.host || ''}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('s3-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const r = await apiPost('/api/addons/remote-backup/configure/s3', {
+            bucket: document.getElementById('s3-bucket').value,
+            access_key: document.getElementById('s3-key').value,
+            secret_key: document.getElementById('s3-secret').value,
+            region: document.getElementById('s3-region').value,
+            endpoint: document.getElementById('s3-endpoint').value || null,
+        });
+        showToast(r?.message || 'Configuré', r?.success ? 'success' : 'error');
+        loadRemotes();
+    });
+
+    document.getElementById('sftp-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const r = await apiPost('/api/addons/remote-backup/configure/sftp', {
+            host: document.getElementById('sftp-host').value,
+            port: parseInt(document.getElementById('sftp-port').value),
+            username: document.getElementById('sftp-user').value,
+            password: document.getElementById('sftp-pass').value || null,
+            remote_path: document.getElementById('sftp-path').value,
+        });
+        showToast(r?.message || 'Configuré', r?.success ? 'success' : 'error');
+        loadRemotes();
+    });
+
+    async function backupToRemote() {
+        const domain = document.getElementById('rb-domain').value;
+        const dest = document.getElementById('rb-dest').value;
+        if (!domain) { showToast('Sélectionnez un site', 'error'); return; }
+        showToast('Sauvegarde en cours...', 'info');
+        const r = await apiPost('/api/addons/remote-backup/backup', { domain, destination: dest });
+        showToast(r?.message || r?.error || 'Terminé', r?.success ? 'success' : 'error');
+    }
+
+    loadRemotes();
+</script>
+{% endblock %}

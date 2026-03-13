@@ -1,0 +1,80 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Rspamd{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Rspamd - Anti-Spam</h2>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Statut</h3>
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between"><span class="text-gray-400">Installé</span><span id="rspamd-installed">-</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Statut</span><span id="rspamd-status">-</span></div>
+            </div>
+            <button id="rspamd-install-btn" onclick="installRspamd()" class="hidden mt-4 w-full bg-green-900/30 text-green-400 hover:bg-green-900/50 text-sm py-2 rounded-lg">
+                <i class="fas fa-download mr-1"></i>Installer Rspamd
+            </button>
+        </div>
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Générer DKIM</h3>
+            <div class="flex gap-2">
+                <input type="text" id="dkim-domain" placeholder="exemple.com"
+                    class="flex-1 bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <button onclick="generateDKIM()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm px-4 py-2 rounded-lg">Générer</button>
+            </div>
+            <div id="dkim-result" class="hidden mt-3 p-3 bg-dark-800 rounded-lg">
+                <pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap" id="dkim-record"></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Statistiques</h3>
+        <pre id="rspamd-stats" class="text-sm text-gray-400 font-mono whitespace-pre-wrap">Chargement...</pre>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadRspamd() {
+        const s = await apiGet('/api/addons/rspamd/status');
+        if (!s) return;
+        document.getElementById('rspamd-installed').innerHTML = s.installed ? '<span class="text-green-400">Oui</span>' : '<span class="text-red-400">Non</span>';
+        document.getElementById('rspamd-status').innerHTML = s.running ? '<span class="text-green-400">Actif</span>' : '<span class="text-red-400">Inactif</span>';
+        if (!s.installed) document.getElementById('rspamd-install-btn').classList.remove('hidden');
+
+        if (s.running) {
+            const stats = await apiGet('/api/addons/rspamd/stats');
+            document.getElementById('rspamd-stats').textContent = stats?.stats ? JSON.stringify(stats.stats, null, 2) : 'Aucune statistique';
+        }
+    }
+
+    async function installRspamd() {
+        showToast('Installation de Rspamd...', 'info');
+        const r = await apiPost('/api/addons/rspamd/install', {});
+        showToast(r?.message || 'Terminé', r?.success ? 'success' : 'error');
+        loadRspamd();
+    }
+
+    async function generateDKIM() {
+        const domain = document.getElementById('dkim-domain').value;
+        if (!domain) return;
+        const r = await apiPost('/api/addons/rspamd/dkim', { domain });
+        if (r?.success) {
+            document.getElementById('dkim-record').textContent = r.dns_record;
+            document.getElementById('dkim-result').classList.remove('hidden');
+            showToast(r.message);
+        } else {
+            showToast(r?.error || 'Erreur', 'error');
+        }
+    }
+
+    loadRspamd();
+</script>
+{% endblock %}

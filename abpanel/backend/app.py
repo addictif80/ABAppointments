@@ -7,7 +7,23 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+# Core API routes
 from backend.api import auth, backups, dashboard, databases, dns, email, files, firewall_routes, ftp, services, ssl_routes, websites
+# Add-on API routes
+from backend.api import (
+    app_installer_routes,
+    cron_routes,
+    docker_routes,
+    email_debug_routes,
+    git_routes,
+    modsecurity_routes,
+    phpmyadmin,
+    remote_backup_routes,
+    resource_routes,
+    rspamd_routes,
+    terminal_routes,
+    wordpress_routes,
+)
 from backend.core.config import settings
 from backend.core.database import init_db
 from backend.core.security import hash_password
@@ -48,7 +64,7 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 templates = Jinja2Templates(directory="frontend/templates")
 
-# API routes
+# Core API routes
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(websites.router)
@@ -62,6 +78,22 @@ app.include_router(firewall_routes.router)
 app.include_router(backups.router)
 app.include_router(services.router)
 
+# Add-on API routes
+app.include_router(phpmyadmin.router)
+app.include_router(wordpress_routes.router)
+app.include_router(docker_routes.router)
+app.include_router(git_routes.router)
+app.include_router(app_installer_routes.router)
+app.include_router(modsecurity_routes.router)
+app.include_router(rspamd_routes.router)
+app.include_router(email_debug_routes.router)
+app.include_router(terminal_routes.router)
+app.include_router(cron_routes.router)
+app.include_router(resource_routes.router)
+app.include_router(remote_backup_routes.router)
+
+
+# ── Core pages ──
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -116,3 +148,65 @@ async def backups_page(request: Request):
 @app.get("/services-page", response_class=HTMLResponse)
 async def services_page(request: Request):
     return templates.TemplateResponse("pages/services.html", {"request": request})
+
+
+# ── Add-on pages ──
+
+@app.get("/addons", response_class=HTMLResponse)
+async def addons_page(request: Request):
+    return templates.TemplateResponse("pages/addons.html", {"request": request})
+
+
+@app.get("/wordpress-manager", response_class=HTMLResponse)
+async def wordpress_page(request: Request):
+    return templates.TemplateResponse("pages/wordpress.html", {"request": request})
+
+
+@app.get("/docker-manager", response_class=HTMLResponse)
+async def docker_page(request: Request):
+    return templates.TemplateResponse("pages/docker.html", {"request": request})
+
+
+@app.get("/git-manager", response_class=HTMLResponse)
+async def git_page(request: Request):
+    return templates.TemplateResponse("pages/git.html", {"request": request})
+
+
+@app.get("/app-installer", response_class=HTMLResponse)
+async def app_installer_page(request: Request):
+    return templates.TemplateResponse("pages/app_installer.html", {"request": request})
+
+
+@app.get("/modsecurity-page", response_class=HTMLResponse)
+async def modsecurity_page(request: Request):
+    return templates.TemplateResponse("pages/modsecurity.html", {"request": request})
+
+
+@app.get("/rspamd-page", response_class=HTMLResponse)
+async def rspamd_page(request: Request):
+    return templates.TemplateResponse("pages/rspamd.html", {"request": request})
+
+
+@app.get("/email-debugger", response_class=HTMLResponse)
+async def email_debugger_page(request: Request):
+    return templates.TemplateResponse("pages/email_debug.html", {"request": request})
+
+
+@app.get("/terminal", response_class=HTMLResponse)
+async def terminal_page(request: Request):
+    return templates.TemplateResponse("pages/terminal.html", {"request": request})
+
+
+@app.get("/cron-manager", response_class=HTMLResponse)
+async def cron_page(request: Request):
+    return templates.TemplateResponse("pages/cron.html", {"request": request})
+
+
+@app.get("/resource-limits", response_class=HTMLResponse)
+async def resource_limits_page(request: Request):
+    return templates.TemplateResponse("pages/resource_limits.html", {"request": request})
+
+
+@app.get("/remote-backups", response_class=HTMLResponse)
+async def remote_backups_page(request: Request):
+    return templates.TemplateResponse("pages/remote_backup.html", {"request": request})

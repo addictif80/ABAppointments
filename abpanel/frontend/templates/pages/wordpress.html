@@ -1,0 +1,179 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - WordPress Manager{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">WordPress Manager</h2>
+        <div class="flex gap-2">
+            <button onclick="installWPCLI()" class="bg-dark-800 border border-gray-700 text-gray-400 px-4 py-2 rounded-lg hover:text-white text-sm">
+                <i class="fas fa-wrench mr-2"></i>Installer WP-CLI
+            </button>
+            <button onclick="document.getElementById('wp-modal').classList.remove('hidden')"
+                class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+                <i class="fab fa-wordpress mr-2"></i>Installer WordPress
+            </button>
+        </div>
+    </div>
+
+    <!-- Site selector -->
+    <div class="mb-4">
+        <select id="wp-domain" onchange="loadWPInfo()"
+            class="bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 w-full max-w-md">
+            <option value="">Sélectionner un site...</option>
+        </select>
+    </div>
+
+    <!-- WordPress Info -->
+    <div id="wp-info" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Informations</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-gray-500">Version</span><span class="text-white" id="wp-version">-</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Plugins</span><span class="text-white" id="wp-plugins-count">-</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Thèmes</span><span class="text-white" id="wp-themes-count">-</span></div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button onclick="updateWP()" class="flex-1 bg-green-900/30 text-green-400 hover:bg-green-900/50 text-sm py-2 rounded-lg">
+                        <i class="fas fa-sync mr-1"></i>Mettre à jour tout
+                    </button>
+                    <button onclick="createStaging()" class="flex-1 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 text-sm py-2 rounded-lg">
+                        <i class="fas fa-copy mr-1"></i>Créer staging
+                    </button>
+                </div>
+            </div>
+            <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Plugins installés</h3>
+                <div id="wp-plugins-list" class="space-y-1 max-h-48 overflow-y-auto text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="wp-not-installed" class="hidden bg-dark-900 rounded-xl border border-gray-800 p-8 text-center">
+        <i class="fab fa-wordpress text-4xl text-gray-600 mb-4"></i>
+        <p class="text-gray-500">WordPress n'est pas installé sur ce site</p>
+    </div>
+
+    <!-- Install WordPress modal -->
+    <div id="wp-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-semibold text-white mb-4">Installer WordPress</h3>
+            <form id="wp-form" class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Domaine</label>
+                    <select id="wp-install-domain" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500"></select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Titre du site</label>
+                    <input type="text" id="wp-title" value="Mon Site" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Admin user</label>
+                        <input type="text" id="wp-admin-user" value="admin" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Admin password</label>
+                        <input type="password" id="wp-admin-pass" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Admin email</label>
+                    <input type="email" id="wp-admin-email" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Nom BDD</label>
+                        <input type="text" id="wp-db-name" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">User BDD</label>
+                        <input type="text" id="wp-db-user" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Pass BDD</label>
+                        <input type="password" id="wp-db-pass" required class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('wp-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Installer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (async () => {
+        const websites = await apiGet('/api/websites/');
+        if (websites) {
+            ['wp-domain', 'wp-install-domain'].forEach(id => {
+                const sel = document.getElementById(id);
+                websites.forEach(w => { const o = document.createElement('option'); o.value = w.domain; o.textContent = w.domain; sel.appendChild(o); });
+            });
+        }
+    })();
+
+    async function loadWPInfo() {
+        const domain = document.getElementById('wp-domain').value;
+        if (!domain) return;
+        const info = await apiGet(`/api/addons/wordpress/info/${domain}`);
+        if (info && info.installed) {
+            document.getElementById('wp-info').classList.remove('hidden');
+            document.getElementById('wp-not-installed').classList.add('hidden');
+            document.getElementById('wp-version').textContent = info.version;
+            document.getElementById('wp-plugins-count').textContent = info.plugins.length;
+            document.getElementById('wp-themes-count').textContent = info.themes.length;
+            document.getElementById('wp-plugins-list').innerHTML = info.plugins.map(p =>
+                `<div class="flex justify-between py-1 px-2 rounded bg-dark-800"><span class="text-gray-300">${p.name}</span><span class="${p.status === 'active' ? 'text-green-400' : 'text-gray-500'} text-xs">${p.status}</span></div>`
+            ).join('');
+        } else {
+            document.getElementById('wp-info').classList.add('hidden');
+            document.getElementById('wp-not-installed').classList.remove('hidden');
+        }
+    }
+
+    async function installWPCLI() {
+        showToast('Installation de WP-CLI...', 'info');
+        const r = await apiPost('/api/addons/wordpress/install-cli', {});
+        showToast(r?.message || 'Terminé', r?.success ? 'success' : 'error');
+    }
+
+    async function updateWP() {
+        const domain = document.getElementById('wp-domain').value;
+        showToast('Mise à jour en cours...', 'info');
+        await apiPost(`/api/addons/wordpress/update/${domain}`, {});
+        showToast('WordPress mis à jour');
+        loadWPInfo();
+    }
+
+    async function createStaging() {
+        const domain = document.getElementById('wp-domain').value;
+        const r = await apiPost(`/api/addons/wordpress/staging/${domain}`, {});
+        showToast(r?.message || 'Staging créé', r?.success ? 'success' : 'error');
+    }
+
+    document.getElementById('wp-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        showToast('Installation de WordPress...', 'info');
+        const r = await apiPost('/api/addons/wordpress/install', {
+            domain: document.getElementById('wp-install-domain').value,
+            site_title: document.getElementById('wp-title').value,
+            admin_user: document.getElementById('wp-admin-user').value,
+            admin_password: document.getElementById('wp-admin-pass').value,
+            admin_email: document.getElementById('wp-admin-email').value,
+            db_name: document.getElementById('wp-db-name').value,
+            db_user: document.getElementById('wp-db-user').value,
+            db_password: document.getElementById('wp-db-pass').value,
+        });
+        document.getElementById('wp-modal').classList.add('hidden');
+        showToast(r?.message || r?.detail || 'Terminé', r?.success ? 'success' : 'error');
+    });
+</script>
+{% endblock %}

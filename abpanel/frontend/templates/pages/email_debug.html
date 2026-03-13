@@ -1,0 +1,115 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Email Debugger{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Email Debugger</h2>
+        <button onclick="runCheck()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-stethoscope mr-2"></i>Diagnostic complet
+        </button>
+    </div>
+
+    <div id="check-results" class="space-y-4 mb-4"></div>
+
+    <!-- Test email -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Envoyer un email de test</h3>
+            <div class="space-y-3">
+                <input type="email" id="test-from" placeholder="from@exemple.com" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <input type="email" id="test-to" placeholder="to@exemple.com" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500">
+                <button onclick="sendTest()" class="w-full bg-primary-600 hover:bg-primary-700 text-white text-sm py-2 rounded-lg">
+                    <i class="fas fa-paper-plane mr-1"></i>Envoyer
+                </button>
+            </div>
+        </div>
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">File d'attente</h3>
+            <div class="flex gap-2 mb-3">
+                <button onclick="flushQueue()" class="flex-1 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 text-sm py-2 rounded-lg">
+                    <i class="fas fa-redo mr-1"></i>Forcer l'envoi
+                </button>
+                <button onclick="purgeQueue()" class="flex-1 bg-red-900/30 text-red-400 hover:bg-red-900/50 text-sm py-2 rounded-lg">
+                    <i class="fas fa-trash mr-1"></i>Purger
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function runCheck() {
+        showToast('Diagnostic en cours...', 'info');
+        const r = await apiGet('/api/addons/email-debug/check');
+        if (!r) return;
+
+        const container = document.getElementById('check-results');
+        let html = '';
+
+        // Services
+        html += `<div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Services email</h3>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div class="flex justify-between p-2 rounded bg-dark-800"><span>Postfix</span><span class="${r.postfix?.running ? 'text-green-400' : 'text-red-400'}">${r.postfix?.status}</span></div>
+                <div class="flex justify-between p-2 rounded bg-dark-800"><span>Dovecot</span><span class="${r.dovecot?.running ? 'text-green-400' : 'text-red-400'}">${r.dovecot?.status}</span></div>
+            </div>
+        </div>`;
+
+        // Ports
+        if (r.ports) {
+            html += `<div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Ports</h3>
+                <div class="grid grid-cols-3 gap-2 text-sm">
+                    ${Object.entries(r.ports).map(([name, info]) =>
+                        `<div class="flex justify-between p-2 rounded bg-dark-800"><span>${name} (:${info.port})</span><span class="${info.listening ? 'text-green-400' : 'text-red-400'}">${info.listening ? 'OK' : 'Fermé'}</span></div>`
+                    ).join('')}
+                </div>
+            </div>`;
+        }
+
+        // Hostname
+        if (r.hostname) {
+            html += `<div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Configuration</h3>
+                <div class="space-y-1 text-sm">
+                    <div class="flex justify-between p-2 rounded bg-dark-800"><span class="text-gray-400">Hostname système</span><span class="text-white">${r.hostname.system_hostname}</span></div>
+                    <div class="flex justify-between p-2 rounded bg-dark-800"><span class="text-gray-400">Hostname Postfix</span><span class="text-white">${r.hostname.postfix_hostname}</span></div>
+                    <div class="flex justify-between p-2 rounded bg-dark-800"><span class="text-gray-400">IP serveur</span><span class="text-white">${r.dns?.server_ip || '-'}</span></div>
+                </div>
+            </div>`;
+        }
+
+        // Errors
+        if (r.recent_errors?.errors?.length) {
+            html += `<div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <h3 class="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">Erreurs récentes</h3>
+                <pre class="text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">${r.recent_errors.errors.join('\n')}</pre>
+            </div>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    async function sendTest() {
+        const r = await apiPost('/api/addons/email-debug/test', {
+            from_addr: document.getElementById('test-from').value,
+            to_addr: document.getElementById('test-to').value,
+        });
+        showToast(r?.message || r?.error || 'Envoyé', r?.success ? 'success' : 'error');
+    }
+
+    async function flushQueue() { const r = await apiPost('/api/addons/email-debug/flush-queue', {}); showToast(r?.message || 'Terminé'); }
+    async function purgeQueue() {
+        if (!confirm('Purger toute la file d\'attente ?')) return;
+        const r = await apiPost('/api/addons/email-debug/purge-queue', {});
+        showToast(r?.message || 'Terminé');
+    }
+
+    runCheck();
+</script>
+{% endblock %}
