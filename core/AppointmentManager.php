@@ -248,8 +248,26 @@ class AppointmentManager {
 
         if ($status === 'confirmed') {
             $this->sendStatusEmail($appointment, 'appointment_confirmed');
+            // Sync to CalDAV
+            try {
+                $caldav = new CalDAV();
+                if ($caldav->isEnabledFor($appointment['provider_id'])) {
+                    $caldav->syncAppointment($appointmentId);
+                }
+            } catch (Exception $e) {
+                error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
+            }
         } elseif ($status === 'cancelled') {
             $this->sendStatusEmail($appointment, 'appointment_cancelled');
+            // Remove from CalDAV
+            try {
+                $caldav = new CalDAV();
+                if ($caldav->isEnabledFor($appointment['provider_id'])) {
+                    $caldav->deleteEvent($appointmentId);
+                }
+            } catch (Exception $e) {
+                error_log('ABAppointments CalDAV delete error: ' . $e->getMessage());
+            }
         }
 
         return true;

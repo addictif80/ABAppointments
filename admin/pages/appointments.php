@@ -8,29 +8,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postAction = $_POST['action'] ?? '';
 
     if ($postAction === 'update_status' && isset($_POST['id'], $_POST['status'])) {
-        $manager->updateStatus((int)$_POST['id'], $_POST['status']);
         $appointmentId = (int)$_POST['id'];
+        $manager->updateStatus($appointmentId, $_POST['status']);
 
         if ($_POST['status'] === 'confirmed') {
             // Sync to Google Calendar
             $gcal = new GoogleCalendar();
             if ($gcal->isConfigured()) {
                 $gcal->syncAppointment($appointmentId);
-            }
-            // Sync to CalDAV
-            try {
-                $caldav = new CalDAV();
-                $caldav->syncAppointment($appointmentId);
-            } catch (Exception $e) {
-                error_log('ABAppointments caldav error: ' . $e->getMessage());
-            }
-        } elseif ($_POST['status'] === 'cancelled') {
-            // Remove from CalDAV
-            try {
-                $caldav = new CalDAV();
-                $caldav->deleteEvent($appointmentId);
-            } catch (Exception $e) {
-                error_log('ABAppointments caldav delete error: ' . $e->getMessage());
             }
         }
         ab_flash('success', 'Statut mis à jour.');
