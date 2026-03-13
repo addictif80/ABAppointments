@@ -155,6 +155,22 @@ function wp_verify_csrf() {
     return hash_equals($_SESSION['csrf_token'] ?? '', $token);
 }
 
+function wp_os_icon($icon, $size = '') {
+    $sizeClass = $size ? ' fs-' . $size : '';
+    $map = [
+        'debian'    => '<i class="bi bi-disc' . $sizeClass . '" style="color:#A81D33"></i>',
+        'ubuntu'    => '<i class="bi bi-ubuntu' . $sizeClass . '" style="color:#E95420"></i>',
+        'centos'    => '<i class="bi bi-bullseye' . $sizeClass . '" style="color:#932279"></i>',
+        'almalinux' => '<i class="bi bi-shield-check' . $sizeClass . '" style="color:#0F4266"></i>',
+        'rocky'     => '<i class="bi bi-mountain' . $sizeClass . '" style="color:#10B981"></i>',
+        'alpine'    => '<i class="bi bi-snow' . $sizeClass . '" style="color:#0D597F"></i>',
+        'fedora'    => '<i class="bi bi-infinity' . $sizeClass . '" style="color:#51A2DA"></i>',
+        'archlinux' => '<i class="bi bi-triangle' . $sizeClass . '" style="color:#1793D1"></i>',
+        'windows'   => '<i class="bi bi-windows' . $sizeClass . '" style="color:#0078D6"></i>',
+    ];
+    return $map[$icon] ?? '<i class="bi bi-hdd' . $sizeClass . '"></i>';
+}
+
 function wp_paginate($total, $perPage = 20, $currentPage = null) {
     if ($currentPage === null) $currentPage = max(1, (int)($_GET['page'] ?? 1));
     $totalPages = max(1, ceil($total / $perPage));

@@ -44,6 +44,25 @@ class CyberPanelAPI {
         return $decoded;
     }
 
+    public function createUser($firstName, $lastName, $email, $username, $password, $websitesLimit = 1, $securityLevel = 'HIGH') {
+        return $this->request('submitUserCreation', [
+            'firstName' => $firstName,
+            'lastName' => $lastName,
+            'email' => $email,
+            'userName' => $username,
+            'password' => $password,
+            'websitesLimit' => $websitesLimit,
+            'selectedACL' => 'user',
+            'securityLevel' => $securityLevel
+        ]);
+    }
+
+    public function deleteUser($username) {
+        return $this->request('submitUserDeletion', [
+            'accountUsername' => $username
+        ]);
+    }
+
     public function createWebsite($domain, $email, $package, $username, $password, $phpVersion = '8.2') {
         return $this->request('createWebsite', [
             'domainName' => $domain,
@@ -143,6 +162,9 @@ class CyberPanelAPI {
     public function provisionHosting($domain, $email, $package, $diskMb, $bandwidthMb, $emailAccounts, $databases) {
         $username = preg_replace('/[^a-z0-9]/', '', strtolower(explode('.', $domain)[0]));
         $username = substr($username, 0, 16);
+        if (strlen($username) < 3) {
+            $username = 'user' . $username;
+        }
         $password = wp_generate_password(16);
 
         // Create or use existing package
@@ -153,6 +175,17 @@ class CyberPanelAPI {
             // Package might already exist
         }
 
+        // Create CyberPanel user account first
+        try {
+            $this->createUser('Client', $username, $email, $username, $password);
+        } catch (Exception $e) {
+            // User might already exist — only ignore that specific case
+            if (strpos($e->getMessage(), 'already exist') === false) {
+                throw $e;
+            }
+        }
+
+        // Now create the website under that user
         $this->createWebsite($domain, $email, $packageName, $username, $password);
 
         return [
