@@ -8,7 +8,7 @@ class CyberPanelAPI {
     private $adminPass;
 
     public function __construct() {
-        $this->url = rtrim(wp_setting('cyberpanel_url'), '/');
+        $this->url = rtrim(wp_setting('cyberpanel_api_url') ?: wp_setting('cyberpanel_url'), '/');
         $this->adminUser = wp_setting('cyberpanel_admin_user', 'admin');
         $this->adminPass = wp_setting('cyberpanel_admin_pass');
     }
