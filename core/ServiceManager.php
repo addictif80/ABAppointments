@@ -98,37 +98,41 @@ class ServiceManager {
         $orderMeta = json_decode($sub['order_meta'] ?? '{}', true) ?: [];
         $domain = $orderMeta['domain'] ?? ('site-' . $sub['id'] . '.example.com');
 
-        // Remove any previous failed hosting record for re-provisioning
+        // Check existing hosting record
         $existing = $db->fetchOne("SELECT * FROM wp_services_hosting WHERE subscription_id = ?", [$sub['id']]);
-        if ($existing && $existing['status'] === 'error') {
-            $db->query("DELETE FROM wp_services_hosting WHERE id = ?", [$existing['id']]);
-        } elseif ($existing && $existing['status'] === 'active') {
+        if ($existing && $existing['status'] === 'active') {
             return $existing['id']; // Already provisioned
         }
+        // Remove failed record so we can re-provision cleanly
+        if ($existing) {
+            $db->query("DELETE FROM wp_services_hosting WHERE id = ?", [$existing['id']]);
+        }
 
-        try {
-            $result = $cyberpanel->provisionHosting(
-                $domain, $user['email'],
-                $sub['hosting_package'] ?? 'default',
-                $sub['hosting_disk_mb'] ?? 1024,
-                $sub['hosting_bandwidth_mb'] ?? 10240,
-                $sub['hosting_email_accounts'] ?? 5,
-                $sub['hosting_databases'] ?? 3
-            );
+        $result = $cyberpanel->provisionHosting(
+            $domain, $user['email'],
+            $sub['hosting_package'] ?? 'default',
+            $sub['hosting_disk_mb'] ?? 1024,
+            $sub['hosting_bandwidth_mb'] ?? 10240,
+            $sub['hosting_email_accounts'] ?? 5,
+            $sub['hosting_databases'] ?? 3
+        );
 
-            $hostingId = $db->insert('wp_services_hosting', [
-                'subscription_id' => $sub['id'],
-                'domain' => $domain,
-                'cyberpanel_username' => $result['username'],
-                'cyberpanel_password' => base64_encode(openssl_encrypt($result['password'], 'AES-256-CBC', SECRET_KEY, 0, substr(md5(SECRET_KEY), 0, 16))),
-                'cyberpanel_package' => $result['package'],
-                'disk_mb' => $sub['hosting_disk_mb'] ?? 1024,
-                'bandwidth_mb' => $sub['hosting_bandwidth_mb'] ?? 10240,
-                'email_accounts' => $sub['hosting_email_accounts'] ?? 5,
-                'databases' => $sub['hosting_databases'] ?? 3,
-                'status' => 'active'
-            ]);
+        // Always store credentials (user is created even if website creation fails)
+        $status = $result['website_created'] ? 'active' : 'error';
+        $hostingId = $db->insert('wp_services_hosting', [
+            'subscription_id' => $sub['id'],
+            'domain' => $domain,
+            'cyberpanel_username' => $result['username'],
+            'cyberpanel_password' => base64_encode(openssl_encrypt($result['password'], 'AES-256-CBC', SECRET_KEY, 0, substr(md5(SECRET_KEY), 0, 16))),
+            'cyberpanel_package' => $result['package'],
+            'disk_mb' => $sub['hosting_disk_mb'] ?? 1024,
+            'bandwidth_mb' => $sub['hosting_bandwidth_mb'] ?? 10240,
+            'email_accounts' => $sub['hosting_email_accounts'] ?? 5,
+            'databases' => $sub['hosting_databases'] ?? 3,
+            'status' => $status
+        ]);
 
+        if ($result['website_created']) {
             $mailer = new Mailer();
             $mailer->sendTemplate($user['email'], 'service_created', [
                 'first_name' => $user['first_name'],
@@ -136,20 +140,16 @@ class ServiceManager {
                 'service_details' => "Domaine: $domain | Utilisateur: {$result['username']}",
                 'dashboard_url' => wp_url('client/?page=hosting-detail&id=' . $sub['id'])
             ]);
-
             wp_log_activity('hosting_provisioned', 'hosting', $hostingId, ['domain' => $domain]);
-            return $hostingId;
-        } catch (Exception $e) {
-            $db->insert('wp_services_hosting', [
-                'subscription_id' => $sub['id'],
+        } else {
+            wp_log_activity('hosting_provision_partial', 'hosting', $hostingId, [
                 'domain' => $domain,
-                'disk_mb' => $sub['hosting_disk_mb'] ?? 1024,
-                'bandwidth_mb' => $sub['hosting_bandwidth_mb'] ?? 10240,
-                'status' => 'error'
+                'error' => $result['website_error'],
+                'note' => 'Utilisateur CyberPanel cree, mais creation du site echouee'
             ]);
-            wp_log_activity('hosting_provision_failed', 'subscription', $sub['id'], ['error' => $e->getMessage()]);
-            throw $e;
         }
+
+        return $hostingId;
     }
 
     private static function provisionNavidrome($sub, $user) {

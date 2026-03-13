@@ -55,9 +55,15 @@ class CyberPanelAPI {
         // (status, createWebSiteStatus, createStatus, changeStatus, etc.)
         // Detect errors by looking for any key ending in "status"/"Status" with value 0
         $errorMessage = $decoded['error_message'] ?? null;
+        // CyberPanel returns "None" as string when there's no error
+        if ($errorMessage === 'None' || $errorMessage === 'none' || $errorMessage === '') {
+            $errorMessage = null;
+        }
         foreach ($decoded as $key => $value) {
             if (preg_match('/[Ss]tatus/', $key) && (int)$value === 0) {
-                throw new Exception("CyberPanel: " . ($errorMessage ?? "echec sur $endpoint (${key}=0)"));
+                $detail = $errorMessage ?? "echec sur $endpoint (${key}=0)";
+                error_log("CyberPanel API ERROR [$endpoint]: $detail | Full response: " . json_encode($decoded));
+                throw new Exception("CyberPanel: $detail");
             }
         }
 
@@ -192,6 +198,7 @@ class CyberPanelAPI {
         try {
             $this->createPackage($packageName, (int)($diskMb / 1024) ?: 1, (int)($bandwidthMb / 1024) ?: 10, $emailAccounts, $databases, 1);
         } catch (Exception $e) {
+            error_log("CyberPanel: createPackage ignored: " . $e->getMessage());
             // Package might already exist
         }
 
@@ -200,18 +207,29 @@ class CyberPanelAPI {
             $this->createUser('Client', $username, $email, $username, $password);
         } catch (Exception $e) {
             // User might already exist — only ignore that specific case
-            if (strpos($e->getMessage(), 'already exist') === false) {
+            if (strpos($e->getMessage(), 'already exist') === false &&
+                strpos($e->getMessage(), 'Already exist') === false &&
+                strpos($e->getMessage(), 'deja') === false) {
                 throw $e;
             }
+            error_log("CyberPanel: createUser ignored (already exists): " . $e->getMessage());
         }
 
         // Now create the website under that user
-        $this->createWebsite($domain, $email, $packageName, $username, $password);
+        $websiteError = null;
+        try {
+            $this->createWebsite($domain, $email, $packageName, $username, $password);
+        } catch (Exception $e) {
+            $websiteError = $e->getMessage();
+            error_log("CyberPanel: createWebsite FAILED for $domain: $websiteError");
+        }
 
         return [
             'username' => $username,
             'password' => $password,
-            'package' => $packageName
+            'package' => $packageName,
+            'website_created' => ($websiteError === null),
+            'website_error' => $websiteError
         ];
     }
 
