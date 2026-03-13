@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'google_client_id', 'google_client_secret', 'google_redirect_uri',
         'primary_color', 'secondary_color', 'embed_enabled',
         'booking_announcement', 'admin_announcement',
+        'modal_message', 'modal_max_views',
     ];
 
     foreach ($settingsToSave as $key) {
@@ -23,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Handle checkboxes
-    foreach (['require_phone', 'allow_customer_cancel', 'auto_confirm', 'embed_enabled'] as $key) {
+    foreach (['require_phone', 'allow_customer_cancel', 'auto_confirm', 'embed_enabled', 'modal_enabled'] as $key) {
         Settings::set($key, isset($_POST[$key]) ? '1' : '0');
     }
 
@@ -75,6 +76,24 @@ $tab = $_GET['tab'] ?? 'general';
                     <textarea name="admin_announcement" class="form-control" rows="2" placeholder="Ce message sera visible par les prestataires et administrateurs sur le tableau de bord"><?= ab_escape(ab_setting('admin_announcement')) ?></textarea>
                     <small class="text-muted">Visible sur le tableau de bord par tous les prestataires et administrateurs.</small>
                 </div>
+                <div class="col-12"><hr></div>
+                <div class="col-12">
+                    <label class="form-label"><i class="bi bi-exclamation-triangle"></i> Message important (fenêtre modale)</label>
+                    <textarea name="modal_message" class="form-control" rows="3" placeholder="Ce message s'affichera dans une fenêtre modale à l'ouverture de la page de réservation"><?= ab_escape(ab_setting('modal_message')) ?></textarea>
+                    <small class="text-muted">Laissez vide pour désactiver. Le HTML simple est autorisé (gras, liens, etc.)</small>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check form-switch mt-2">
+                        <input type="checkbox" name="modal_enabled" class="form-check-input" <?= ab_setting('modal_enabled', '0') === '1' ? 'checked' : '' ?>>
+                        <label class="form-check-label">Activer la fenêtre modale</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Nombre de visites avant masquage</label>
+                    <input type="number" name="modal_max_views" class="form-control" min="1" max="100" value="<?= ab_escape(ab_setting('modal_max_views', '3')) ?>">
+                    <small class="text-muted">La modale ne s'affichera plus après ce nombre de visites du même client</small>
+                </div>
+                <div class="col-12"><hr></div>
                 <div class="col-md-3"><label class="form-label">Format date</label><input type="text" name="date_format" class="form-control" value="<?= ab_escape(ab_setting('date_format', 'd/m/Y')) ?>"></div>
                 <div class="col-md-3"><label class="form-label">Format heure</label><input type="text" name="time_format" class="form-control" value="<?= ab_escape(ab_setting('time_format', 'H:i')) ?>"></div>
                 <div class="col-md-3"><label class="form-label">Devise</label><input type="text" name="currency" class="form-control" value="<?= ab_escape(ab_setting('currency', 'EUR')) ?>"></div>

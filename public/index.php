@@ -18,6 +18,9 @@ $services = $db->fetchAll(
 
 $providers = $db->fetchAll("SELECT id, first_name, last_name, welcome_message FROM ab_users WHERE is_active = 1 AND is_visible_booking = 1 AND role IN ('admin','provider') ORDER BY first_name");
 $bookingAnnouncement = ab_setting('booking_announcement');
+$modalEnabled = ab_setting('modal_enabled', '0') === '1';
+$modalMessage = ab_setting('modal_message');
+$modalMaxViews = (int) ab_setting('modal_max_views', '3');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -266,7 +269,39 @@ $bookingAnnouncement = ab_setting('booking_announcement');
         <?= ab_escape($businessName) ?> &middot; <?= ab_escape(ab_setting('business_phone')) ?>
     </footer>
 
+    <?php if ($modalEnabled && !empty($modalMessage)): ?>
+    <div class="modal fade" id="importantModal" tabindex="-1" aria-labelledby="importantModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; border: none;">
+                    <h5 class="modal-title" id="importantModalLabel"><i class="bi bi-exclamation-triangle-fill"></i> Information importante</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body" style="padding: 25px; font-size: 1.05rem; line-height: 1.6;">
+                    <?= ab_safe_html($modalMessage) ?>
+                </div>
+                <div class="modal-footer" style="border: none;">
+                    <button type="button" class="btn btn-ab" data-bs-dismiss="modal">J'ai compris</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if ($modalEnabled && !empty($modalMessage)): ?>
+    <script>
+    (function() {
+        const maxViews = <?= $modalMaxViews ?>;
+        const storageKey = 'ab_modal_views';
+        let views = parseInt(localStorage.getItem(storageKey) || '0', 10);
+        if (views < maxViews) {
+            localStorage.setItem(storageKey, String(views + 1));
+            new bootstrap.Modal(document.getElementById('importantModal')).show();
+        }
+    })();
+    </script>
+    <?php endif; ?>
     <script>
     const API_URL = '<?= ab_url('api/index.php') ?>';
     let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0 };
