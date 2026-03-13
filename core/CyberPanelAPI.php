@@ -36,6 +36,8 @@ class CyberPanelAPI {
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
+        error_log("CyberPanel API [$endpoint] HTTP $httpCode: " . substr($response, 0, 300));
+
         if ($error) throw new Exception("CyberPanel API error ($url): $error");
         if ($httpCode === 404) throw new Exception("CyberPanel API: endpoint not found ($url). Verifiez que l'URL API pointe vers CyberPanel (port 8090).");
         if ($httpCode >= 500) throw new Exception("CyberPanel API: erreur serveur (HTTP $httpCode) sur $url");
@@ -43,8 +45,20 @@ class CyberPanelAPI {
         $decoded = json_decode($response, true);
         if (!$decoded) throw new Exception("CyberPanel API: reponse invalide (HTTP $httpCode) depuis $url: " . substr($response, 0, 200));
 
-        if (isset($decoded['status']) && $decoded['status'] === 0) {
-            throw new Exception("CyberPanel: " . ($decoded['error_message'] ?? 'Unknown error'));
+        // Check for HTTP client errors (400, 403, etc.)
+        if ($httpCode >= 400) {
+            $msg = $decoded['error_message'] ?? "HTTP $httpCode";
+            throw new Exception("CyberPanel API ($url): $msg");
+        }
+
+        // CyberPanel uses different status field names per endpoint
+        // (status, createWebSiteStatus, createStatus, changeStatus, etc.)
+        // Detect errors by looking for any key ending in "status"/"Status" with value 0
+        $errorMessage = $decoded['error_message'] ?? null;
+        foreach ($decoded as $key => $value) {
+            if (preg_match('/[Ss]tatus/', $key) && (int)$value === 0) {
+                throw new Exception("CyberPanel: " . ($errorMessage ?? "echec sur $endpoint (${key}=0)"));
+            }
         }
 
         return $decoded;

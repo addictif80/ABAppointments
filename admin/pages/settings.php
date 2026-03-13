@@ -2,6 +2,22 @@
 $pageTitle = 'Parametres';
 $settings = new Settings();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'test_cyberpanel') {
+    header('Content-Type: application/json');
+    try {
+        $cyberpanel = new CyberPanelAPI();
+        if (!$cyberpanel->isConfigured()) {
+            echo json_encode(['success' => false, 'message' => 'CyberPanel non configure (URL ou mot de passe manquant).']);
+        } else {
+            $result = $cyberpanel->verifyConnection();
+            echo json_encode(['success' => true, 'message' => 'Connexion reussie !']);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tab = $_POST['tab'] ?? 'general';
     $fields = [];
@@ -123,6 +139,13 @@ $tab = $_GET['tab'] ?? 'general';
                 <div class="col-md-6"><label class="form-label">URL API CyberPanel</label><input type="url" name="cyberpanel_api_url" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_api_url')) ?>" placeholder="https://10.0.0.1:8090"><small class="form-text text-muted">URL interne pour les appels API (IP:8090, Tailscale...)</small></div>
                 <div class="col-md-6"><label class="form-label">Utilisateur admin</label><input type="text" name="cyberpanel_admin_user" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_admin_user', 'admin')) ?>"></div>
                 <div class="col-md-6"><label class="form-label">Mot de passe admin</label><input type="password" name="cyberpanel_admin_pass" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_admin_pass')) ?>"></div>
+                <div class="col-12">
+                    <div class="alert alert-info mb-0"><strong>Important :</strong> L'acces API doit etre active dans CyberPanel &rarr; Users &rarr; API Access pour l'utilisateur admin.</div>
+                </div>
+                <div class="col-12">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="testCyberpanelBtn">Tester la connexion</button>
+                    <span id="testCyberpanelResult" class="ms-2"></span>
+                </div>
             </div>
 
             <?php elseif ($tab === 'navidrome'): ?>
@@ -143,3 +166,21 @@ $tab = $_GET['tab'] ?? 'general';
         </form>
     </div>
 </div>
+<script>
+document.getElementById('testCyberpanelBtn')?.addEventListener('click', function() {
+    var btn = this, result = document.getElementById('testCyberpanelResult');
+    btn.disabled = true; result.textContent = 'Test en cours...'; result.className = 'ms-2 text-muted';
+    var fd = new FormData();
+    fd.append('action', 'test_cyberpanel');
+    fd.append('csrf_token', document.querySelector('input[name=csrf_token]').value);
+    fetch(location.href, {method: 'POST', body: fd}).then(r => r.json()).then(function(data) {
+        result.textContent = data.message;
+        result.className = 'ms-2 ' + (data.success ? 'text-success' : 'text-danger');
+        btn.disabled = false;
+    }).catch(function() {
+        result.textContent = 'Erreur de connexion';
+        result.className = 'ms-2 text-danger';
+        btn.disabled = false;
+    });
+});
+</script>
