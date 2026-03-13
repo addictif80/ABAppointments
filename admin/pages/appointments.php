@@ -43,7 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($postAction === 'delete' && isset($_POST['id'])) {
-        $db->delete('ab_appointments', 'id = ?', [(int)$_POST['id']]);
+        $appointmentId = (int)$_POST['id'];
+        // Remove from CalDAV before deleting from database
+        try {
+            $caldav = new CalDAV();
+            $caldav->deleteEvent($appointmentId);
+        } catch (Exception $e) {
+            error_log('ABAppointments CalDAV delete error: ' . $e->getMessage());
+        }
+        $db->delete('ab_appointments', 'id = ?', [$appointmentId]);
         ab_flash('success', 'Rendez-vous supprimé.');
         ab_redirect(ab_url('admin/index.php?page=appointments'));
     }
