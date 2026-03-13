@@ -98,6 +98,14 @@ class ServiceManager {
         $orderMeta = json_decode($sub['order_meta'] ?? '{}', true) ?: [];
         $domain = $orderMeta['domain'] ?? ('site-' . $sub['id'] . '.example.com');
 
+        // Remove any previous failed hosting record for re-provisioning
+        $existing = $db->fetchOne("SELECT * FROM wp_services_hosting WHERE subscription_id = ?", [$sub['id']]);
+        if ($existing && $existing['status'] === 'error') {
+            $db->query("DELETE FROM wp_services_hosting WHERE id = ?", [$existing['id']]);
+        } elseif ($existing && $existing['status'] === 'active') {
+            return $existing['id']; // Already provisioned
+        }
+
         try {
             $result = $cyberpanel->provisionHosting(
                 $domain, $user['email'],

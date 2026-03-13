@@ -31,6 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'terminate') {
         ServiceManager::terminateService($subId);
         wp_flash('success', 'Service supprime.');
+    } elseif ($action === 'provision') {
+        try {
+            ServiceManager::provisionService($subId);
+            $db->update('wp_subscriptions', ['status' => 'active'], 'id = ?', [$subId]);
+            wp_flash('success', 'Service provisionne avec succes.');
+        } catch (Exception $e) {
+            wp_flash('error', 'Erreur de provisioning: ' . $e->getMessage());
+        }
     } elseif ($action === 'generate_invoice') {
         $invId = InvoiceManager::generateRenewalInvoice($subId);
         wp_flash('success', "Facture generee (#$invId).");
@@ -91,9 +99,12 @@ $pageTitle = $sub['product_name'] . ' - ' . $sub['first_name'] . ' ' . $sub['las
                 <?php elseif ($sub['type'] === 'hosting'): ?>
                     <div class="row g-2">
                         <div class="col-md-4"><strong>Domaine:</strong> <?= wp_escape($serviceDetail['domain']) ?></div>
-                        <div class="col-md-4"><strong>User CP:</strong> <?= wp_escape($serviceDetail['cyberpanel_username']) ?></div>
-                        <div class="col-md-4"><strong>Statut:</strong> <?= $serviceDetail['status'] ?></div>
+                        <div class="col-md-4"><strong>User CP:</strong> <?= wp_escape($serviceDetail['cyberpanel_username'] ?: 'Non provisionne') ?></div>
+                        <div class="col-md-4"><strong>Statut:</strong> <span class="badge bg-<?= $serviceDetail['status'] === 'active' ? 'success' : ($serviceDetail['status'] === 'error' ? 'danger' : 'warning') ?>"><?= $serviceDetail['status'] ?></span></div>
                     </div>
+                    <?php if ($serviceDetail['status'] === 'error'): ?>
+                    <div class="alert alert-danger mt-2 mb-0 py-2"><i class="bi bi-exclamation-triangle me-1"></i> Le provisioning a echoue. Utilisez le bouton "Re-provisionner" pour relancer.</div>
+                    <?php endif; ?>
                 <?php elseif ($sub['type'] === 'navidrome'): ?>
                     <div class="row g-2">
                         <div class="col-md-4"><strong>Username:</strong> <?= wp_escape($serviceDetail['navidrome_username']) ?></div>
@@ -134,6 +145,22 @@ $pageTitle = $sub['product_name'] . ' - ' . $sub['first_name'] . ' ' . $sub['las
         <div class="card">
             <div class="card-header"><h6 class="mb-0">Actions</h6></div>
             <div class="card-body d-grid gap-2">
+                <?php
+                $needsProvision = false;
+                if ($sub['type'] === 'hosting') {
+                    $needsProvision = !$serviceDetail || $serviceDetail['status'] === 'error' || empty($serviceDetail['cyberpanel_username']);
+                } elseif ($sub['type'] === 'vps') {
+                    $needsProvision = !$serviceDetail || $serviceDetail['status'] === 'error';
+                } elseif ($sub['type'] === 'navidrome') {
+                    $needsProvision = !$serviceDetail || $serviceDetail['status'] === 'error';
+                }
+                ?>
+                <?php if ($needsProvision): ?>
+                    <form method="POST" onsubmit="return confirm('Lancer le provisioning du service ?')">
+                        <?= wp_csrf_field() ?>
+                        <button name="action" value="provision" class="btn btn-info w-100 mb-2"><i class="bi bi-cloud-upload me-1"></i><?= $serviceDetail ? 'Re-provisionner' : 'Provisionner' ?></button>
+                    </form>
+                <?php endif; ?>
                 <?php if ($sub['status'] === 'active'): ?>
                     <form method="POST"><?= wp_csrf_field() ?><input type="text" name="reason" class="form-control mb-2" placeholder="Raison (optionnel)"><button name="action" value="suspend" class="btn btn-warning w-100"><i class="bi bi-pause me-1"></i>Suspendre</button></form>
                 <?php elseif ($sub['status'] === 'suspended'): ?>

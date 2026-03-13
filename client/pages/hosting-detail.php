@@ -102,6 +102,7 @@ $bwPercent = $hosting['bandwidth_mb'] > 0 ? min(100, round($hosting['bandwidth_u
         <div class="card mb-4">
             <div class="card-header"><h6 class="mb-0"><i class="bi bi-key me-2"></i> Identifiants CyberPanel</h6></div>
             <div class="card-body">
+                <?php if (!empty($hosting['cyberpanel_username']) && !empty($password)): ?>
                 <div class="mb-3">
                     <label class="form-label text-muted small">Utilisateur</label>
                     <div class="input-group">
@@ -117,6 +118,12 @@ $bwPercent = $hosting['bandwidth_mb'] > 0 ? min(100, round($hosting['bandwidth_u
                         <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText('<?= wp_escape($password) ?>')"><i class="bi bi-clipboard"></i></button>
                     </div>
                 </div>
+                <?php else: ?>
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-exclamation-triangle fs-3 text-warning"></i>
+                    <p class="mt-2 mb-0">Identifiants non disponibles.<br><small>Le provisioning du service est en cours ou a echoue. Contactez le support si le probleme persiste.</small></p>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 
