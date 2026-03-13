@@ -28,12 +28,14 @@ class ServiceManager {
         $db = Database::getInstance();
         $proxmox = new ProxmoxAPI();
 
-        $hostname = 'vps-' . $sub['id'];
+        $orderMeta = json_decode($sub['order_meta'] ?? '{}', true) ?: [];
+        $hostname = $orderMeta['hostname'] ?? ('vps-' . $sub['id']);
         $password = wp_generate_password(16);
 
         // Get OS template
+        $osTemplateId = $orderMeta['os_template_id'] ?? 1;
         $osTemplate = $db->fetchOne("SELECT * FROM wp_os_templates WHERE id = ? AND is_active = 1",
-            [$_POST['os_template_id'] ?? 1]);
+            [$osTemplateId]);
         if (!$osTemplate) {
             $osTemplate = $db->fetchOne("SELECT * FROM wp_os_templates WHERE is_active = 1 ORDER BY sort_order LIMIT 1");
         }
@@ -93,7 +95,8 @@ class ServiceManager {
         $db = Database::getInstance();
         $cyberpanel = new CyberPanelAPI();
 
-        $domain = $_POST['domain'] ?? 'site-' . $sub['id'] . '.example.com';
+        $orderMeta = json_decode($sub['order_meta'] ?? '{}', true) ?: [];
+        $domain = $orderMeta['domain'] ?? ('site-' . $sub['id'] . '.example.com');
 
         try {
             $result = $cyberpanel->provisionHosting(
@@ -147,10 +150,9 @@ class ServiceManager {
 
         $baseUsername = strtolower(mb_substr($user['first_name'], 0, 1) . '.' . $user['last_name']);
 
-        // Get custom password from order session if available
-        $orderData = $_SESSION['order_data_' . $sub['id']] ?? null;
-        $customPassword = ($orderData && !empty($orderData['navidrome_password'])) ? $orderData['navidrome_password'] : null;
-        if ($orderData) unset($_SESSION['order_data_' . $sub['id']]);
+        // Get custom password from order metadata
+        $orderMeta = json_decode($sub['order_meta'] ?? '{}', true) ?: [];
+        $customPassword = !empty($orderMeta['navidrome_password']) ? $orderMeta['navidrome_password'] : null;
 
         try {
             $result = $navidrome->provisionUser($baseUsername, $customPassword);

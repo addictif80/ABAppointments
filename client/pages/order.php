@@ -160,18 +160,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
         }
 
-        // Store extra data for provisioning
+        // Store order data in subscription for provisioning (persists across webhook calls)
+        $orderMeta = [];
         if ($product['type'] === 'vps') {
-            $_SESSION['order_data_' . $subId] = [
+            $orderMeta = [
                 'os_template_id' => (int)($_POST['os_template_id'] ?? 1),
                 'hostname' => trim($_POST['hostname'] ?? 'vps-' . $subId)
             ];
         } elseif ($product['type'] === 'hosting') {
-            $_SESSION['order_data_' . $subId] = [
+            $orderMeta = [
                 'domain' => trim($_POST['domain'] ?? '')
             ];
         } elseif ($product['type'] === 'navidrome') {
-            $_SESSION['order_data_' . $subId] = ['navidrome_password' => $_POST['navidrome_password']];
+            $orderMeta = [
+                'navidrome_password' => $_POST['navidrome_password']
+            ];
+        }
+        if ($orderMeta) {
+            $db->update('wp_subscriptions', ['order_meta' => json_encode($orderMeta)], 'id = ?', [$subId]);
         }
 
         $db->commit();
