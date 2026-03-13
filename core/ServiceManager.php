@@ -339,6 +339,9 @@ class ServiceManager {
                     try {
                         $cyberpanel = new CyberPanelAPI();
                         $cyberpanel->deleteWebsite($hosting['domain']);
+                        if ($hosting['cyberpanel_username']) {
+                            $cyberpanel->deleteUser($hosting['cyberpanel_username']);
+                        }
                     } catch (Exception $e) {}
                 }
                 break;
