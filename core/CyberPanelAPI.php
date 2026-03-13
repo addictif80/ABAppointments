@@ -17,26 +17,43 @@ class CyberPanelAPI {
         $data['adminUser'] = $this->adminUser;
         $data['adminPass'] = $this->adminPass;
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "{$this->url}/api/$endpoint",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode($data),
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_TIMEOUT => 30
-        ]);
+        // Try /cloudAPI/ first (official endpoint), fallback to /api/
+        $urls = [
+            "{$this->url}/cloudAPI/$endpoint",
+            "{$this->url}/api/$endpoint",
+        ];
 
-        $response = curl_exec($ch);
-        $error = curl_error($ch);
-        curl_close($ch);
+        $response = null;
+        $error = null;
+        $httpCode = 0;
+
+        foreach ($urls as $url) {
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($data),
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_TIMEOUT => 30
+            ]);
+
+            $response = curl_exec($ch);
+            $error = curl_error($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if (!$error && $httpCode >= 200 && $httpCode < 500) {
+                break;
+            }
+        }
 
         if ($error) throw new Exception("CyberPanel API error: $error");
 
         $decoded = json_decode($response, true);
-        if (!$decoded) throw new Exception("CyberPanel API: Invalid response");
+        if (!$decoded) throw new Exception("CyberPanel API: Invalid response (HTTP $httpCode): " . substr($response, 0, 200));
 
         if (isset($decoded['status']) && $decoded['status'] === 0) {
             throw new Exception("CyberPanel: " . ($decoded['error_message'] ?? 'Unknown error'));
@@ -194,6 +211,10 @@ class CyberPanelAPI {
             'password' => $password,
             'package' => $packageName
         ];
+    }
+
+    public function verifyConnection() {
+        return $this->request('verifyConn');
     }
 
     public function isConfigured() {
