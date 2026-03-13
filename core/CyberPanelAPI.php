@@ -25,6 +25,7 @@ class CyberPanelAPI {
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
             CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_TIMEOUT => 30
         ]);
 
