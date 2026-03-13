@@ -17,43 +17,31 @@ class CyberPanelAPI {
         $data['adminUser'] = $this->adminUser;
         $data['adminPass'] = $this->adminPass;
 
-        // Try /cloudAPI/ first (official endpoint), fallback to /api/
-        $urls = [
-            "{$this->url}/cloudAPI/$endpoint",
-            "{$this->url}/api/$endpoint",
-        ];
+        $url = "{$this->url}/api/$endpoint";
 
-        $response = null;
-        $error = null;
-        $httpCode = 0;
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_TIMEOUT => 30
+        ]);
 
-        foreach ($urls as $url) {
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($data),
-                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_TIMEOUT => 30
-            ]);
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-            $response = curl_exec($ch);
-            $error = curl_error($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if (!$error && $httpCode >= 200 && $httpCode < 500) {
-                break;
-            }
-        }
-
-        if ($error) throw new Exception("CyberPanel API error: $error");
+        if ($error) throw new Exception("CyberPanel API error ($url): $error");
+        if ($httpCode === 404) throw new Exception("CyberPanel API: endpoint not found ($url). Verifiez que l'URL API pointe vers CyberPanel (port 8090).");
+        if ($httpCode >= 500) throw new Exception("CyberPanel API: erreur serveur (HTTP $httpCode) sur $url");
 
         $decoded = json_decode($response, true);
-        if (!$decoded) throw new Exception("CyberPanel API: Invalid response (HTTP $httpCode): " . substr($response, 0, 200));
+        if (!$decoded) throw new Exception("CyberPanel API: reponse invalide (HTTP $httpCode) depuis $url: " . substr($response, 0, 200));
 
         if (isset($decoded['status']) && $decoded['status'] === 0) {
             throw new Exception("CyberPanel: " . ($decoded['error_message'] ?? 'Unknown error'));
