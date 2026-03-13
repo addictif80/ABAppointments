@@ -1,0 +1,124 @@
+<!-- Sidebar -->
+<aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-dark-900 border-r border-gray-800 z-40 transform transition-transform lg:translate-x-0 -translate-x-full">
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-gray-800">
+        <div class="w-9 h-9 bg-primary-600 rounded-lg flex items-center justify-center">
+            <i class="fas fa-server text-white text-sm"></i>
+        </div>
+        <span class="text-lg font-bold text-white">ABPanel</span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="mt-4 px-3 space-y-1">
+        <a href="/dashboard" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="dashboard">
+            <i class="fas fa-tachometer-alt w-5 text-center"></i>
+            <span>Tableau de bord</span>
+        </a>
+        <a href="/sites" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="sites">
+            <i class="fas fa-globe w-5 text-center"></i>
+            <span>Sites web</span>
+        </a>
+        <a href="/databases-page" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="databases">
+            <i class="fas fa-database w-5 text-center"></i>
+            <span>Bases de données</span>
+        </a>
+        <a href="/dns-page" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="dns">
+            <i class="fas fa-sitemap w-5 text-center"></i>
+            <span>Zones DNS</span>
+        </a>
+        <a href="/emails" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="emails">
+            <i class="fas fa-envelope w-5 text-center"></i>
+            <span>Emails</span>
+        </a>
+        <a href="/file-manager" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="files">
+            <i class="fas fa-folder w-5 text-center"></i>
+            <span>Gestionnaire de fichiers</span>
+        </a>
+        <a href="/ssl-page" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="ssl">
+            <i class="fas fa-lock w-5 text-center"></i>
+            <span>Certificats SSL</span>
+        </a>
+        <a href="/firewall-page" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="firewall">
+            <i class="fas fa-shield-alt w-5 text-center"></i>
+            <span>Pare-feu</span>
+        </a>
+        <a href="/backups-page" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="backups">
+            <i class="fas fa-cloud-download-alt w-5 text-center"></i>
+            <span>Sauvegardes</span>
+        </a>
+        <a href="/services-page" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400" data-page="services">
+            <i class="fas fa-cogs w-5 text-center"></i>
+            <span>Services</span>
+        </a>
+    </nav>
+
+    <!-- User section -->
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-primary-700 rounded-full flex items-center justify-center">
+                <i class="fas fa-user text-xs text-white"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate" id="sidebar-username">admin</p>
+                <p class="text-xs text-gray-500" id="sidebar-role">Administrateur</p>
+            </div>
+            <button onclick="logout()" class="text-gray-500 hover:text-red-400 transition-colors">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+<!-- Top bar -->
+<header class="lg:ml-64 bg-dark-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-4">
+        <button onclick="toggleSidebar()" class="lg:hidden text-gray-400 hover:text-white">
+            <i class="fas fa-bars text-lg"></i>
+        </button>
+        <h1 class="text-lg font-semibold text-white" id="page-title">{% block page_title %}Tableau de bord{% endblock %}</h1>
+    </div>
+    <div class="flex items-center gap-4">
+        <span class="text-xs text-gray-500" id="server-time"></span>
+    </div>
+</header>
+
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        sidebar.classList.toggle('-translate-x-full');
+        overlay.classList.toggle('hidden');
+    }
+
+    function logout() {
+        fetch('/api/auth/logout', { method: 'POST' });
+        localStorage.removeItem('token');
+        window.location.href = '/';
+    }
+
+    // Highlight active sidebar link
+    document.querySelectorAll('.sidebar-link').forEach(link => {
+        if (link.href === window.location.href) {
+            link.classList.add('active');
+        }
+    });
+
+    // Update server time
+    function updateTime() {
+        document.getElementById('server-time').textContent = new Date().toLocaleString('fr-FR');
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    // Load user info
+    (async () => {
+        const data = await apiGet('/api/auth/me');
+        if (data) {
+            document.getElementById('sidebar-username').textContent = data.username;
+            document.getElementById('sidebar-role').textContent = data.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+        }
+    })();
+</script>

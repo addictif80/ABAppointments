@@ -1,0 +1,118 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Emails{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Comptes email</h2>
+        <button onclick="document.getElementById('email-modal').classList.remove('hidden')"
+            class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-plus mr-2"></i>Créer un compte
+        </button>
+    </div>
+
+    <div class="bg-dark-900 rounded-xl border border-gray-800 overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-800 text-left">
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Email</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Domaine</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Quota</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="email-table">
+                <tr><td colspan="5" class="px-5 py-8 text-center text-gray-500">Chargement...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Create modal -->
+    <div id="email-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-white mb-4">Créer un compte email</h3>
+            <form id="email-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Adresse email</label>
+                    <input type="email" id="new-email" required placeholder="user@exemple.com"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Mot de passe</label>
+                    <input type="password" id="new-email-pass" required
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Quota (MB)</label>
+                    <input type="number" id="new-email-quota" value="1024"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('email-modal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Créer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadEmails() {
+        const accounts = await apiGet('/api/email/');
+        const tbody = document.getElementById('email-table');
+
+        if (!accounts || accounts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-gray-500">Aucun compte email</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = accounts.map(a => `
+            <tr class="border-b border-gray-800/50 hover:bg-dark-800/50">
+                <td class="px-5 py-3 text-white font-medium">${a.email}</td>
+                <td class="px-5 py-3 text-gray-400">${a.domain}</td>
+                <td class="px-5 py-3 text-gray-400">${a.quota_mb} MB</td>
+                <td class="px-5 py-3">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full
+                        ${a.is_active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}">
+                        ${a.is_active ? 'Actif' : 'Inactif'}
+                    </span>
+                </td>
+                <td class="px-5 py-3">
+                    <button onclick="deleteEmail(${a.id}, '${a.email}')" class="text-red-400 hover:text-red-300 text-sm"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    document.getElementById('email-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const result = await apiPost('/api/email/', {
+            email: document.getElementById('new-email').value,
+            password: document.getElementById('new-email-pass').value,
+            quota_mb: parseInt(document.getElementById('new-email-quota').value),
+        });
+        if (result && !result.detail) {
+            document.getElementById('email-modal').classList.add('hidden');
+            showToast('Compte email créé');
+            loadEmails();
+        } else {
+            showToast(result?.detail || 'Erreur', 'error');
+        }
+    });
+
+    async function deleteEmail(id, email) {
+        if (!confirm(`Supprimer ${email} ?`)) return;
+        await apiDelete(`/api/email/${id}`);
+        showToast('Compte email supprimé');
+        loadEmails();
+    }
+
+    loadEmails();
+</script>
+{% endblock %}

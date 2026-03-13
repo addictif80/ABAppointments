@@ -1,0 +1,82 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Certificats SSL{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Certificats SSL</h2>
+        <button onclick="document.getElementById('ssl-modal').classList.remove('hidden')"
+            class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-plus mr-2"></i>Émettre un certificat
+        </button>
+    </div>
+
+    <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Certificats installés</h3>
+        <pre id="ssl-output" class="text-sm text-gray-300 font-mono whitespace-pre-wrap">Chargement...</pre>
+    </div>
+
+    <div class="mt-4">
+        <button onclick="renewAll()" class="bg-green-700 hover:bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-sync mr-2"></i>Renouveler tous les certificats
+        </button>
+    </div>
+
+    <!-- Issue SSL modal -->
+    <div id="ssl-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-white mb-4">Émettre un certificat SSL</h3>
+            <form id="ssl-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Domaine</label>
+                    <input type="text" id="ssl-domain" required placeholder="exemple.com"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Email</label>
+                    <input type="email" id="ssl-email" required placeholder="admin@exemple.com"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('ssl-modal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Émettre</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadSSL() {
+        const result = await apiGet('/api/ssl/list');
+        document.getElementById('ssl-output').textContent = result?.output || 'Aucun certificat trouvé';
+    }
+
+    document.getElementById('ssl-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const result = await apiPost('/api/ssl/issue', {
+            domain: document.getElementById('ssl-domain').value,
+            email: document.getElementById('ssl-email').value,
+        });
+        if (result && !result.detail) {
+            document.getElementById('ssl-modal').classList.add('hidden');
+            showToast('Certificat SSL émis');
+            loadSSL();
+        } else {
+            showToast(result?.detail || 'Erreur', 'error');
+        }
+    });
+
+    async function renewAll() {
+        const result = await apiPost('/api/ssl/renew', {});
+        showToast(result?.message || 'Renouvellement lancé', result?.success ? 'success' : 'error');
+    }
+
+    loadSSL();
+</script>
+{% endblock %}

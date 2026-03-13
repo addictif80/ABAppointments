@@ -1,0 +1,138 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Sauvegardes{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Sauvegardes</h2>
+        <button onclick="document.getElementById('backup-modal').classList.remove('hidden')"
+            class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <i class="fas fa-plus mr-2"></i>Créer une sauvegarde
+        </button>
+    </div>
+
+    <div class="bg-dark-900 rounded-xl border border-gray-800 overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-800 text-left">
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Nom</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Taille</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="backups-table">
+                <tr><td colspan="4" class="px-5 py-8 text-center text-gray-500">Chargement...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Create backup modal -->
+    <div id="backup-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+        <div class="bg-dark-900 rounded-xl border border-gray-800 p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-white mb-4">Créer une sauvegarde</h3>
+            <form id="backup-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Domaine</label>
+                    <select id="backup-domain" required
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Type</label>
+                    <select id="backup-type"
+                        class="w-full bg-dark-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500">
+                        <option value="full">Complète (fichiers + base)</option>
+                        <option value="files">Fichiers uniquement</option>
+                        <option value="database">Base de données uniquement</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('backup-modal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm text-gray-400 hover:text-white">Annuler</button>
+                    <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Créer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load websites for backup dropdown
+    (async () => {
+        const websites = await apiGet('/api/websites/');
+        const select = document.getElementById('backup-domain');
+        if (websites) {
+            websites.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w.domain;
+                opt.textContent = w.domain;
+                select.appendChild(opt);
+            });
+        }
+    })();
+
+    async function loadBackups() {
+        const result = await apiGet('/api/backups/');
+        const tbody = document.getElementById('backups-table');
+
+        if (!result || !result.backups || result.backups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="px-5 py-8 text-center text-gray-500">Aucune sauvegarde</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = result.backups.map(b => `
+            <tr class="border-b border-gray-800/50 hover:bg-dark-800/50">
+                <td class="px-5 py-3 text-white font-medium">${b.name}</td>
+                <td class="px-5 py-3 text-gray-400">${formatBytes(b.size_bytes)}</td>
+                <td class="px-5 py-3 text-gray-400 text-sm">${new Date(b.created).toLocaleString('fr-FR')}</td>
+                <td class="px-5 py-3 flex gap-2">
+                    <button onclick="restoreBackup('${b.name}')" class="text-blue-400 hover:text-blue-300 text-sm" title="Restaurer">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button onclick="deleteBackup('${b.name}')" class="text-red-400 hover:text-red-300 text-sm" title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    document.getElementById('backup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        showToast('Sauvegarde en cours...', 'info');
+        const result = await apiPost('/api/backups/create', {
+            domain: document.getElementById('backup-domain').value,
+            backup_type: document.getElementById('backup-type').value,
+        });
+        if (result && result.success) {
+            document.getElementById('backup-modal').classList.add('hidden');
+            showToast('Sauvegarde créée');
+            loadBackups();
+        } else {
+            showToast(result?.error || result?.detail || 'Erreur', 'error');
+        }
+    });
+
+    async function restoreBackup(name) {
+        const domain = prompt('Domaine de destination :');
+        if (!domain) return;
+        showToast('Restauration en cours...', 'info');
+        const result = await apiPost('/api/backups/restore', { backup_name: name, domain });
+        showToast(result?.message || 'Restauration terminée', result?.success ? 'success' : 'error');
+    }
+
+    async function deleteBackup(name) {
+        if (!confirm(`Supprimer la sauvegarde ${name} ?`)) return;
+        await apiDelete(`/api/backups/${name}`);
+        showToast('Sauvegarde supprimée');
+        loadBackups();
+    }
+
+    loadBackups();
+</script>
+{% endblock %}

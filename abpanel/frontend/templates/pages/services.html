@@ -1,0 +1,72 @@
+{% extends "partials/base.html" %}
+{% block title %}ABPanel - Services{% endblock %}
+
+{% block body %}
+{% include "partials/sidebar.html" %}
+
+<main class="lg:ml-64 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-white">Gestion des services</h2>
+        <button onclick="loadServices()" class="bg-dark-800 border border-gray-700 text-gray-400 px-4 py-2 rounded-lg hover:text-white text-sm">
+            <i class="fas fa-sync mr-2"></i>Rafraîchir
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="services-grid">
+        <div class="text-gray-500">Chargement...</div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadServices() {
+        const services = await apiGet('/api/services/');
+        const grid = document.getElementById('services-grid');
+
+        if (!services || services.length === 0) {
+            grid.innerHTML = '<div class="text-gray-500">Aucun service trouvé</div>';
+            return;
+        }
+
+        grid.innerHTML = services.map(s => `
+            <div class="bg-dark-900 rounded-xl border border-gray-800 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-white font-medium">${s.name}</h3>
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full
+                        ${s.running ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}">
+                        <span class="w-1.5 h-1.5 rounded-full ${s.running ? 'bg-green-400' : 'bg-red-400'}"></span>
+                        ${s.status}
+                    </span>
+                </div>
+                <div class="flex gap-2">
+                    ${s.running ? `
+                        <button onclick="manageService('${s.name}', 'restart')" class="flex-1 bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 text-xs py-2 rounded-lg transition-colors">
+                            <i class="fas fa-redo mr-1"></i>Redémarrer
+                        </button>
+                        <button onclick="manageService('${s.name}', 'stop')" class="flex-1 bg-red-900/30 text-red-400 hover:bg-red-900/50 text-xs py-2 rounded-lg transition-colors">
+                            <i class="fas fa-stop mr-1"></i>Arrêter
+                        </button>
+                    ` : `
+                        <button onclick="manageService('${s.name}', 'start')" class="flex-1 bg-green-900/30 text-green-400 hover:bg-green-900/50 text-xs py-2 rounded-lg transition-colors">
+                            <i class="fas fa-play mr-1"></i>Démarrer
+                        </button>
+                    `}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function manageService(name, action) {
+        const result = await apiPost('/api/services/manage', { service: name, action });
+        if (result && result.success) {
+            showToast(`${name} : ${action} réussi`);
+        } else {
+            showToast(result?.error || 'Erreur', 'error');
+        }
+        setTimeout(loadServices, 1000);
+    }
+
+    loadServices();
+</script>
+{% endblock %}
