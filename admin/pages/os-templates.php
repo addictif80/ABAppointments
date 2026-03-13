@@ -38,7 +38,7 @@ $templates = $db->fetchAll("SELECT * FROM wp_os_templates ORDER BY sort_order, n
 <div class="card">
     <div class="table-responsive">
         <table class="table table-hover mb-0">
-            <thead><tr><th>Ordre</th><th>Nom</th><th>Slug</th><th>Template Proxmox</th><th>Categorie</th><th>Actif</th><th></th></tr></thead>
+            <thead><tr><th>Ordre</th><th>Nom</th><th>Slug</th><th>VMID Template</th><th>Categorie</th><th>Actif</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($templates as $t): ?>
             <tr>
@@ -69,7 +69,7 @@ $templates = $db->fetchAll("SELECT * FROM wp_os_templates ORDER BY sort_order, n
             <div class="modal-body">
                 <div class="mb-3"><label class="form-label">Nom *</label><input type="text" name="name" id="osName" class="form-control" required></div>
                 <div class="mb-3"><label class="form-label">Slug</label><input type="text" name="slug" id="osSlug" class="form-control"></div>
-                <div class="mb-3"><label class="form-label">Template Proxmox *</label><input type="text" name="proxmox_template" id="osTpl" class="form-control" required placeholder="local:vztmpl/debian-12-..."></div>
+                <div class="mb-3"><label class="form-label">VMID du template Proxmox *</label><input type="number" name="proxmox_template" id="osTpl" class="form-control" required placeholder="9000" min="100"><div class="form-text">VMID de la VM template cloud-init dans Proxmox (ex: 9000, 9001...)</div></div>
                 <div class="row g-3">
                     <div class="col-md-4"><label class="form-label">Icone</label><input type="text" name="icon" id="osIcon" class="form-control"></div>
                     <div class="col-md-4"><label class="form-label">Categorie</label><select name="category" id="osCat" class="form-select"><option value="linux">Linux</option><option value="windows">Windows</option></select></div>
