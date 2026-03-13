@@ -504,6 +504,7 @@ INSERT INTO `wp_settings` (`setting_key`, `setting_value`) VALUES
 ('proxmox_default_bridge', 'vmbr0'),
 ('proxmox_vmid_start', '200'),
 ('cyberpanel_url', ''),
+('cyberpanel_api_url', ''),
 ('cyberpanel_admin_user', 'admin'),
 ('cyberpanel_admin_pass', ''),
 ('navidrome_url', ''),

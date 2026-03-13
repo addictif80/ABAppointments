@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields = ['proxmox_host', 'proxmox_port', 'proxmox_user', 'proxmox_token_id', 'proxmox_token_secret', 'proxmox_default_node', 'proxmox_default_storage', 'proxmox_default_bridge', 'proxmox_vmid_start'];
             break;
         case 'cyberpanel':
-            $fields = ['cyberpanel_url', 'cyberpanel_admin_user', 'cyberpanel_admin_pass'];
+            $fields = ['cyberpanel_url', 'cyberpanel_api_url', 'cyberpanel_admin_user', 'cyberpanel_admin_pass'];
             break;
         case 'navidrome':
             $fields = ['navidrome_url', 'navidrome_admin_user', 'navidrome_admin_pass'];
@@ -119,7 +119,8 @@ $tab = $_GET['tab'] ?? 'general';
 
             <?php elseif ($tab === 'cyberpanel'): ?>
             <div class="row g-3">
-                <div class="col-12"><label class="form-label">URL CyberPanel</label><input type="url" name="cyberpanel_url" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_url')) ?>" placeholder="https://cyberpanel.example.com:8090"></div>
+                <div class="col-md-6"><label class="form-label">URL publique CyberPanel</label><input type="url" name="cyberpanel_url" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_url')) ?>" placeholder="https://cp.example.com"><small class="form-text text-muted">URL visible par les clients</small></div>
+                <div class="col-md-6"><label class="form-label">URL API CyberPanel</label><input type="url" name="cyberpanel_api_url" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_api_url')) ?>" placeholder="https://10.0.0.1:8090"><small class="form-text text-muted">URL interne pour les appels API (IP:8090, Tailscale...)</small></div>
                 <div class="col-md-6"><label class="form-label">Utilisateur admin</label><input type="text" name="cyberpanel_admin_user" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_admin_user', 'admin')) ?>"></div>
                 <div class="col-md-6"><label class="form-label">Mot de passe admin</label><input type="password" name="cyberpanel_admin_pass" class="form-control" value="<?= wp_escape($settings->get('cyberpanel_admin_pass')) ?>"></div>
             </div>
