@@ -10,7 +10,7 @@ $sub = $db->fetchOne(
 );
 if (!$sub) { wp_flash('error', 'Service introuvable.'); wp_redirect(wp_url('client/?page=subscriptions')); }
 
-$vps = $db->fetchOne("SELECT v.*, o.name as os_name FROM wp_services_vps v LEFT JOIN wp_os_templates o ON v.os_template_id = o.id WHERE v.subscription_id = ?", [$subId]);
+$vps = $db->fetchOne("SELECT v.*, o.name as os_name, o.icon as os_icon FROM wp_services_vps v LEFT JOIN wp_os_templates o ON v.os_template_id = o.id WHERE v.subscription_id = ?", [$subId]);
 if (!$vps) { wp_flash('error', 'VPS non provisionne.'); wp_redirect(wp_url('client/?page=subscriptions')); }
 
 // Handle actions
@@ -110,7 +110,7 @@ $pageTitle = $vps['hostname'];
                     <div class="col-md-6">
                         <div class="p-3 bg-light rounded">
                             <small class="text-muted d-block">Systeme</small>
-                            <span><?= wp_escape($vps['os_name'] ?? 'N/A') ?></span>
+                            <span><?= wp_os_icon($vps['os_icon'] ?? '') ?> <?= wp_escape($vps['os_name'] ?? 'N/A') ?></span>
                         </div>
                     </div>
                     <div class="col-md-3">

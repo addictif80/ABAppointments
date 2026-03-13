@@ -545,6 +545,9 @@ INSERT INTO `wp_os_templates` (`name`, `slug`, `proxmox_template`, `icon`, `cate
 ('Ubuntu 24.04', 'ubuntu-2404', 'local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst', 'ubuntu', 'linux', 3),
 ('AlmaLinux 9', 'alma-9', 'local:vztmpl/almalinux-9-default_20230607_amd64.tar.xz', 'almalinux', 'linux', 4),
 ('Rocky Linux 9', 'rocky-9', 'local:vztmpl/rockylinux-9-default_20230629_amd64.tar.xz', 'rocky', 'linux', 5),
-('Alpine 3.19', 'alpine-319', 'local:vztmpl/alpine-3.19-default_20240207_amd64.tar.xz', 'alpine', 'linux', 6);
+('Alpine 3.19', 'alpine-319', 'local:vztmpl/alpine-3.19-default_20240207_amd64.tar.xz', 'alpine', 'linux', 6),
+('CentOS Stream 9', 'centos-stream-9', 'local:vztmpl/centos-9-stream-default_20221109_amd64.tar.xz', 'centos', 'linux', 7),
+('Fedora 41', 'fedora-41', 'local:vztmpl/fedora-41-default_20241104_amd64.tar.xz', 'fedora', 'linux', 8),
+('Arch Linux', 'arch-linux', 'local:vztmpl/archlinux-base_20240516_amd64.tar.zst', 'archlinux', 'linux', 9);
 
 SET FOREIGN_KEY_CHECKS = 1;

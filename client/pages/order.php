@@ -236,7 +236,7 @@ $typeLabels = ['vps' => 'VPS', 'hosting' => 'Hebergement', 'navidrome' => 'Navid
                                 <div class="form-check card p-2">
                                     <input class="form-check-input" type="radio" name="os_template_id" value="<?= $os['id'] ?>" id="os_<?= $os['id'] ?>" <?= $i === 0 ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="os_<?= $os['id'] ?>">
-                                        <i class="bi bi-ubuntu"></i> <?= wp_escape($os['name']) ?>
+                                        <?= wp_os_icon($os['icon']) ?> <?= wp_escape($os['name']) ?>
                                     </label>
                                 </div>
                             </div>

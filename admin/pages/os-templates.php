@@ -43,7 +43,7 @@ $templates = $db->fetchAll("SELECT * FROM wp_os_templates ORDER BY sort_order, n
             <?php foreach ($templates as $t): ?>
             <tr>
                 <td><?= $t['sort_order'] ?></td>
-                <td class="fw-semibold"><?= wp_escape($t['name']) ?></td>
+                <td class="fw-semibold"><?= wp_os_icon($t['icon']) ?> <?= wp_escape($t['name']) ?></td>
                 <td><code><?= wp_escape($t['slug']) ?></code></td>
                 <td class="small"><?= wp_escape($t['proxmox_template']) ?></td>
                 <td><?= ucfirst($t['category']) ?></td>
