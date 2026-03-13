@@ -293,7 +293,13 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     <script>
     (function() {
         const maxViews = <?= $modalMaxViews ?>;
-        const storageKey = 'ab_modal_views';
+        const msgHash = '<?= md5($modalMessage) ?>';
+        const storageKey = 'ab_modal_' + msgHash;
+        // Clean old modal keys when message changes
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('ab_modal_') && k !== storageKey) localStorage.removeItem(k);
+        }
         let views = parseInt(localStorage.getItem(storageKey) || '0', 10);
         if (views < maxViews) {
             localStorage.setItem(storageKey, String(views + 1));
