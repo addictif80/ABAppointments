@@ -204,26 +204,24 @@ class CyberPanelAPI {
             // Package might already exist
         }
 
-        // Create CyberPanel user account first
-        try {
-            $this->createUser('Client', $username, $email, $username, $password, $packageName);
-        } catch (Exception $e) {
-            // User might already exist — only ignore that specific case
-            if (strpos($e->getMessage(), 'already exist') === false &&
-                strpos($e->getMessage(), 'Already exist') === false &&
-                strpos($e->getMessage(), 'deja') === false) {
-                throw $e;
-            }
-            error_log("CyberPanel: createUser ignored (already exists): " . $e->getMessage());
-        }
-
-        // Now create the website under that user
+        // CyberPanel's createWebsite creates both the user AND website in one call
+        // (same approach as the official WHMCS module: jetchirag/cyberpanel-whmcs)
         $websiteError = null;
         try {
             $this->createWebsite($domain, $email, $packageName, $username, $password);
         } catch (Exception $e) {
             $websiteError = $e->getMessage();
             error_log("CyberPanel: createWebsite FAILED for $domain: $websiteError");
+
+            // If createWebsite failed, try creating user separately as fallback
+            // so at least the CyberPanel account exists
+            try {
+                $this->createUser('Client', $username, $email, $username, $password, $packageName);
+                error_log("CyberPanel: createUser fallback succeeded for $username");
+            } catch (Exception $e2) {
+                error_log("CyberPanel: createUser fallback also failed: " . $e2->getMessage());
+                // User might already exist from a previous attempt, that's OK
+            }
         }
 
         return [
