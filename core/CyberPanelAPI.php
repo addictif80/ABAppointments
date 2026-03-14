@@ -14,6 +14,7 @@ class CyberPanelAPI {
     }
 
     private function request($endpoint, $data = []) {
+        // Send admin credentials both in body (legacy) and via Basic Auth (modern CyberPanel)
         $data['adminUser'] = $this->adminUser;
         $data['adminPass'] = $this->adminPass;
 
@@ -26,6 +27,7 @@ class CyberPanelAPI {
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_USERPWD => $this->adminUser . ':' . $this->adminPass,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_TIMEOUT => 30
@@ -70,13 +72,14 @@ class CyberPanelAPI {
         return $decoded;
     }
 
-    public function createUser($firstName, $lastName, $email, $username, $password, $websitesLimit = 1, $securityLevel = 'HIGH') {
+    public function createUser($firstName, $lastName, $email, $username, $password, $packageName = 'Default', $websitesLimit = 1, $securityLevel = 'HIGH') {
         return $this->request('submitUserCreation', [
             'firstName' => $firstName,
             'lastName' => $lastName,
             'email' => $email,
             'userName' => $username,
             'password' => $password,
+            'packageName' => $packageName,
             'websitesLimit' => $websitesLimit,
             'selectedACL' => 'user',
             'securityLevel' => $securityLevel
@@ -89,15 +92,14 @@ class CyberPanelAPI {
         ]);
     }
 
-    public function createWebsite($domain, $email, $package, $username, $password, $phpVersion = '8.2') {
+    public function createWebsite($domain, $email, $package, $username, $password) {
         return $this->request('createWebsite', [
             'domainName' => $domain,
             'ownerEmail' => $email,
             'packageName' => $package,
             'websiteOwner' => $username,
             'ownerPassword' => $password,
-            'phpSelection' => "PHP $phpVersion",
-            'ssl' => 1
+            'acl' => 'user'
         ]);
     }
 
@@ -204,7 +206,7 @@ class CyberPanelAPI {
 
         // Create CyberPanel user account first
         try {
-            $this->createUser('Client', $username, $email, $username, $password);
+            $this->createUser('Client', $username, $email, $username, $password, $packageName);
         } catch (Exception $e) {
             // User might already exist — only ignore that specific case
             if (strpos($e->getMessage(), 'already exist') === false &&

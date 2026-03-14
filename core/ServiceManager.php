@@ -108,14 +108,27 @@ class ServiceManager {
             $db->query("DELETE FROM wp_services_hosting WHERE id = ?", [$existing['id']]);
         }
 
-        $result = $cyberpanel->provisionHosting(
-            $domain, $user['email'],
-            $sub['hosting_package'] ?? 'default',
-            $sub['hosting_disk_mb'] ?? 1024,
-            $sub['hosting_bandwidth_mb'] ?? 10240,
-            $sub['hosting_email_accounts'] ?? 5,
-            $sub['hosting_databases'] ?? 3
-        );
+        try {
+            $result = $cyberpanel->provisionHosting(
+                $domain, $user['email'],
+                $sub['hosting_package'] ?? 'default',
+                $sub['hosting_disk_mb'] ?? 1024,
+                $sub['hosting_bandwidth_mb'] ?? 10240,
+                $sub['hosting_email_accounts'] ?? 5,
+                $sub['hosting_databases'] ?? 3
+            );
+        } catch (Exception $e) {
+            // Total failure (createUser failed, API unreachable, etc.)
+            $db->insert('wp_services_hosting', [
+                'subscription_id' => $sub['id'],
+                'domain' => $domain,
+                'disk_mb' => $sub['hosting_disk_mb'] ?? 1024,
+                'bandwidth_mb' => $sub['hosting_bandwidth_mb'] ?? 10240,
+                'status' => 'error'
+            ]);
+            wp_log_activity('hosting_provision_failed', 'subscription', $sub['id'], ['error' => $e->getMessage()]);
+            throw $e;
+        }
 
         // Always store credentials (user is created even if website creation fails)
         $status = $result['website_created'] ? 'active' : 'error';
