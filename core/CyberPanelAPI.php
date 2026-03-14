@@ -92,14 +92,18 @@ class CyberPanelAPI {
         ]);
     }
 
-    public function createWebsite($domain, $email, $package, $username, $password) {
+    public function createWebsite($domain, $email, $package, $username, $password, $phpVersion = '8.1') {
         return $this->request('createWebsite', [
             'domainName' => $domain,
             'ownerEmail' => $email,
+            'adminEmail' => $email,
             'packageName' => $package,
+            'package' => $package,
             'websiteOwner' => $username,
             'ownerPassword' => $password,
-            'acl' => 'user'
+            'phpSelection' => "PHP $phpVersion",
+            'ssl' => 0,
+            'openBasedir' => 1
         ]);
     }
 
