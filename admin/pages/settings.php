@@ -3,33 +3,65 @@ Auth::requireAdmin();
 $db = Database::getInstance();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $settingsToSave = [
-        'business_name', 'business_email', 'business_phone', 'business_address',
-        'timezone', 'date_format', 'time_format', 'slot_interval',
-        'booking_advance_min', 'booking_advance_max', 'cancellation_limit',
-        'require_phone', 'allow_customer_cancel', 'auto_confirm',
-        'currency', 'currency_symbol', 'deposit_instructions',
-        'smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'smtp_password',
-        'smtp_from_email', 'smtp_from_name',
-        'google_client_id', 'google_client_secret', 'google_redirect_uri',
-        'primary_color', 'secondary_color', 'embed_enabled',
-        'booking_announcement', 'admin_announcement',
-        'modal_message', 'modal_max_views',
+    // Only save fields that belong to the tab that was submitted, so that
+    // editing one tab never wipes checkbox fields that live on another tab.
+    $submittedTab = $_POST['_tab'] ?? 'general';
+
+    $tabFields = [
+        'general' => [
+            'text' => [
+                'business_name', 'business_email', 'business_phone', 'business_address',
+                'timezone', 'date_format', 'time_format',
+                'currency', 'currency_symbol',
+                'booking_announcement', 'admin_announcement',
+                'modal_message', 'modal_max_views',
+            ],
+            'checkbox' => ['modal_enabled'],
+        ],
+        'booking' => [
+            'text' => [
+                'slot_interval', 'booking_advance_min', 'booking_advance_max',
+                'cancellation_limit',
+            ],
+            'checkbox' => ['require_phone', 'allow_customer_cancel', 'auto_confirm'],
+        ],
+        'deposit' => [
+            'text' => ['deposit_instructions'],
+            'checkbox' => [],
+        ],
+        'smtp' => [
+            'text' => [
+                'smtp_host', 'smtp_port', 'smtp_encryption',
+                'smtp_username', 'smtp_password',
+                'smtp_from_email', 'smtp_from_name',
+            ],
+            'checkbox' => [],
+        ],
+        'google' => [
+            'text' => ['google_client_id', 'google_client_secret', 'google_redirect_uri'],
+            'checkbox' => [],
+        ],
+        'appearance' => [
+            'text' => ['primary_color', 'secondary_color'],
+            'checkbox' => ['embed_enabled'],
+        ],
     ];
 
-    foreach ($settingsToSave as $key) {
+    if (!isset($tabFields[$submittedTab])) {
+        $submittedTab = 'general';
+    }
+
+    foreach ($tabFields[$submittedTab]['text'] as $key) {
         if (isset($_POST[$key])) {
             Settings::set($key, $_POST[$key]);
         }
     }
-
-    // Handle checkboxes
-    foreach (['require_phone', 'allow_customer_cancel', 'auto_confirm', 'embed_enabled', 'modal_enabled'] as $key) {
+    foreach ($tabFields[$submittedTab]['checkbox'] as $key) {
         Settings::set($key, isset($_POST[$key]) ? '1' : '0');
     }
 
     ab_flash('success', 'Paramètres enregistrés.');
-    ab_redirect(ab_url('admin/index.php?page=settings'));
+    ab_redirect(ab_url('admin/index.php?page=settings&tab=' . urlencode($submittedTab)));
 }
 
 Settings::loadAll();
@@ -51,6 +83,7 @@ $tab = $_GET['tab'] ?? 'general';
     <div class="card-body">
         <form method="POST">
             <?= Auth::csrfField() ?>
+            <input type="hidden" name="_tab" value="<?= ab_escape($tab) ?>">
 
             <?php if ($tab === 'general'): ?>
             <div class="row g-3">

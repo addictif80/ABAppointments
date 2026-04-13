@@ -107,6 +107,11 @@ function ab_get_flash(): array {
 }
 
 function ab_redirect(string $url): void {
+    // Discard any buffered output so the Location header can be sent
+    // even if the layout already started rendering HTML.
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     header('Location: ' . $url);
     exit;
 }

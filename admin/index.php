@@ -37,9 +37,15 @@ if (file_exists($pageFile)) {
     if ($page === 'login') {
         require $pageFile;
     } else {
-        // Wrap in admin layout
+        // Wrap in admin layout.
+        // Start output buffering so that POST handlers inside the page file
+        // can still call ab_redirect() even though the layout begins emitting
+        // HTML before the page file is required. ab_redirect() clears the
+        // buffer before sending the Location header.
+        ob_start();
         $pageContent = $page;
         require __DIR__ . '/layout.php';
+        ob_end_flush();
     }
 } else {
     http_response_code(404);
