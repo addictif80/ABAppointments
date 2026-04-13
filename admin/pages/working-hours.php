@@ -34,6 +34,10 @@ $hoursMap = [];
 foreach ($workingHours as $wh) {
     $hoursMap[$wh['day_of_week']] = $wh;
 }
+// Only fall back to the "Mon-Fri checked" default when this provider has
+// never configured any working hours at all. Once they save anything, the
+// stored map is the source of truth so unchecking a day actually sticks.
+$isFirstTime = empty($hoursMap);
 ?>
 
 <h4 class="mb-3"><i class="bi bi-clock"></i> Horaires de travail</h4>
@@ -65,7 +69,13 @@ foreach ($workingHours as $wh) {
                     <?php for ($d = 0; $d < 7; $d++): $h = $hoursMap[$d] ?? null; ?>
                     <tr>
                         <td><strong><?= $days[$d] ?></strong></td>
-                        <td><input type="checkbox" name="active[<?= $d ?>]" class="form-check-input" <?= ($h && $h['is_active']) ? 'checked' : '' ?> <?= in_array($d, [1,2,3,4,5]) && !$h ? 'checked' : '' ?>></td>
+                        <td><input type="checkbox" name="active[<?= $d ?>]" class="form-check-input" <?php
+                            if ($h && $h['is_active']) {
+                                echo 'checked';
+                            } elseif ($isFirstTime && in_array($d, [1, 2, 3, 4, 5])) {
+                                echo 'checked';
+                            }
+                        ?>></td>
                         <td><input type="time" name="start[<?= $d ?>]" class="form-control form-control-sm" value="<?= $h['start_time'] ?? '09:00' ?>" step="900"></td>
                         <td><input type="time" name="end[<?= $d ?>]" class="form-control form-control-sm" value="<?= $h['end_time'] ?? '18:00' ?>" step="900"></td>
                         <td><input type="time" name="break_start[<?= $d ?>]" class="form-control form-control-sm" value="<?= $h['break_start'] ?? '12:00' ?>" step="900"></td>
