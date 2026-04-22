@@ -19,6 +19,20 @@ $manager = new AppointmentManager();
 
 try {
     switch ($route) {
+        case 'available-days':
+            $serviceId  = (int)($_GET['service_id'] ?? 0);
+            $providerId = (int)($_GET['provider_id'] ?? 0);
+            $year       = (int)($_GET['year'] ?? 0);
+            $month      = (int)($_GET['month'] ?? 0);
+
+            if (!$serviceId || !$providerId || $year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
+                ab_json(['error' => 'Paramètres invalides'], 400);
+            }
+
+            $days = $manager->getAvailableDays($providerId, $serviceId, $year, $month);
+            ab_json(['days' => $days]);
+            break;
+
         case 'available-slots':
             $serviceId = (int)($_GET['service_id'] ?? 0);
             $providerId = (int)($_GET['provider_id'] ?? 0);

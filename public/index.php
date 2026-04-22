@@ -56,6 +56,9 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         .date-cell:hover { background: rgba(233,30,99,0.1); }
         .date-cell.selected { background: var(--ab-primary); color: #fff; }
         .date-cell.disabled { opacity: 0.3; pointer-events: none; }
+        .date-cell.no-slots { color: #c0c0c0; pointer-events: none; }
+        .date-cell.no-slots .day-num { text-decoration: line-through; }
+        .date-picker.loading-days .date-cell[data-date]:not(.disabled) { opacity: 0.5; }
         .date-cell .day-name { font-size: 0.7rem; text-transform: uppercase; color: #999; }
         .date-cell.selected .day-name { color: rgba(255,255,255,0.8); }
         .date-cell .day-num { font-size: 1.1rem; font-weight: 600; }
@@ -312,6 +315,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     const API_URL = '<?= ab_url('api/index.php') ?>';
     let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0 };
     let currentMonth = new Date();
+    let availableDaysCache = {};
 
     // Step navigation
     function goToStep(n) {
@@ -384,6 +388,43 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         document.getElementById('date-picker').innerHTML = html;
         document.querySelectorAll('.date-cell[data-date]').forEach(cell => {
             cell.addEventListener('click', () => selectDate(cell.dataset.date));
+        });
+
+        loadAvailableDays();
+    }
+
+    function loadAvailableDays() {
+        if (!booking.serviceId || !booking.providerId) return;
+
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1;
+        const cacheKey = year + '-' + month + '-' + booking.serviceId + '-' + booking.providerId;
+        const datePicker = document.getElementById('date-picker');
+
+        if (availableDaysCache[cacheKey] !== undefined) {
+            applyAvailableDays(availableDaysCache[cacheKey]);
+            return;
+        }
+
+        datePicker.classList.add('loading-days');
+        fetch(API_URL + '?route=available-days&service_id=' + booking.serviceId + '&provider_id=' + booking.providerId + '&year=' + year + '&month=' + month)
+            .then(r => r.json())
+            .then(data => {
+                availableDaysCache[cacheKey] = data.days || [];
+                applyAvailableDays(availableDaysCache[cacheKey]);
+            })
+            .catch(() => { /* on error, leave all days clickable */ })
+            .finally(() => { datePicker.classList.remove('loading-days'); });
+    }
+
+    function applyAvailableDays(availableDays) {
+        document.querySelectorAll('.date-cell[data-date]').forEach(cell => {
+            if (cell.classList.contains('disabled') || cell.classList.contains('selected')) return;
+            if (availableDays.includes(cell.dataset.date)) {
+                cell.classList.remove('no-slots');
+            } else {
+                cell.classList.add('no-slots');
+            }
         });
     }
 

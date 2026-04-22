@@ -154,6 +154,125 @@ class AppointmentManager {
     }
 
     /**
+     * Get days in a month that have at least one available slot.
+     * Uses a single DB round-trip per data type (not per day) for performance.
+     */
+    public function getAvailableDays(int $providerId, int $serviceId, int $year, int $month): array {
+        $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ? AND is_active = 1", [$serviceId]);
+        if (!$service) return [];
+
+        // All working hours for this provider indexed by day_of_week
+        $workingHoursAll = $this->db->fetchAll(
+            "SELECT * FROM ab_working_hours WHERE provider_id = ? AND is_active = 1",
+            [$providerId]
+        );
+        $workingHoursByDay = [];
+        foreach ($workingHoursAll as $wh) {
+            $workingHoursByDay[(int)$wh['day_of_week']] = $wh;
+        }
+
+        $monthStart = sprintf('%04d-%02d-01', $year, $month);
+        $daysInMonth = (int) date('t', mktime(0, 0, 0, $month, 1, $year));
+        $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, $daysInMonth);
+
+        // All holidays overlapping this month
+        $holidays = $this->db->fetchAll(
+            "SELECT date_start, date_end FROM ab_holidays
+             WHERE (provider_id = ? OR provider_id IS NULL) AND date_end >= ? AND date_start <= ?",
+            [$providerId, $monthStart, $monthEnd]
+        );
+
+        // All existing appointments this month, grouped by date
+        $appointments = $this->db->fetchAll(
+            "SELECT DATE(start_datetime) as appt_date, start_datetime, end_datetime
+             FROM ab_appointments
+             WHERE provider_id = ? AND DATE(start_datetime) BETWEEN ? AND ? AND status NOT IN ('cancelled')",
+            [$providerId, $monthStart, $monthEnd]
+        );
+        $appointmentsByDate = [];
+        foreach ($appointments as $appt) {
+            $appointmentsByDate[$appt['appt_date']][] = $appt;
+        }
+
+        // All breaks for this provider, grouped by day_of_week
+        $breaks = $this->db->fetchAll(
+            "SELECT day_of_week, start_time, end_time FROM ab_breaks WHERE provider_id = ?",
+            [$providerId]
+        );
+        $breaksByDay = [];
+        foreach ($breaks as $brk) {
+            $breaksByDay[(int)$brk['day_of_week']][] = $brk;
+        }
+
+        $interval = (int) Settings::get('slot_interval', '15');
+        $now = time();
+        $minAdvance = (int) Settings::get('booking_advance_min', '60') * 60;
+        $maxAdvance = (int) Settings::get('booking_advance_max', '43200') * 60;
+
+        $availableDays = [];
+
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            $dayOfWeek = (int) date('w', strtotime($date));
+
+            if (!isset($workingHoursByDay[$dayOfWeek])) continue;
+            $wh = $workingHoursByDay[$dayOfWeek];
+
+            // Check holiday
+            $isHoliday = false;
+            foreach ($holidays as $h) {
+                if ($date >= $h['date_start'] && $date <= $h['date_end']) {
+                    $isHoliday = true;
+                    break;
+                }
+            }
+            if ($isHoliday) continue;
+
+            $startTime = strtotime($date . ' ' . $wh['start_time']);
+            $endTime   = strtotime($date . ' ' . $wh['end_time']);
+            $dayAppointments = $appointmentsByDate[$date] ?? [];
+            $dayBreaks = $breaksByDay[$dayOfWeek] ?? [];
+
+            // Lunch break timestamps (computed once per day)
+            $lunchStart = ($wh['break_start'] && $wh['break_end']) ? strtotime($date . ' ' . $wh['break_start']) : null;
+            $lunchEnd   = $lunchStart ? strtotime($date . ' ' . $wh['break_end']) : null;
+
+            $hasSlot = false;
+            for ($time = $startTime; $time + ($service['duration'] * 60) <= $endTime; $time += $interval * 60) {
+                if ($time < $now + $minAdvance || $time > $now + $maxAdvance) continue;
+
+                $slotStart = $time + ($service['buffer_before'] * 60);
+                $blockEnd  = $slotStart + ($service['duration'] * 60) + ($service['buffer_after'] * 60);
+
+                if ($lunchStart !== null && $time < $lunchEnd && $blockEnd > $lunchStart) continue;
+
+                $inBreak = false;
+                foreach ($dayBreaks as $brk) {
+                    $bStart = strtotime($date . ' ' . $brk['start_time']);
+                    $bEnd   = strtotime($date . ' ' . $brk['end_time']);
+                    if ($time < $bEnd && $blockEnd > $bStart) { $inBreak = true; break; }
+                }
+                if ($inBreak) continue;
+
+                $conflict = false;
+                foreach ($dayAppointments as $appt) {
+                    $aStart = strtotime($appt['start_datetime']);
+                    $aEnd   = strtotime($appt['end_datetime']);
+                    if ($time < $aEnd && $blockEnd > $aStart) { $conflict = true; break; }
+                }
+                if ($conflict) continue;
+
+                $hasSlot = true;
+                break;
+            }
+
+            if ($hasSlot) $availableDays[] = $date;
+        }
+
+        return $availableDays;
+    }
+
+    /**
      * Create a new appointment
      */
     public function create(array $data): ?array {
