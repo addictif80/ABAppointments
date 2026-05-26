@@ -14,7 +14,8 @@ if (php_sapi_name() !== 'cli') {
 $root = __DIR__;
 require_once $root . '/config/config.php';
 
-$dryRun = in_array('--dry-run', $argv ?? [], true);
+$dryRun    = in_array('--dry-run',    $argv ?? [], true);
+$markForce = in_array('--mark-applied', $argv ?? [], true);
 
 // ── Couleurs ANSI ─────────────────────────────────────────────────────────────
 function c(string $text, string $color): string {
@@ -55,7 +56,23 @@ if (empty($files)) {
     exit(0);
 }
 
-echo "\n" . c('ABAppointments – Migration runner', 'bold') . ($dryRun ? c(' [DRY-RUN]', 'yellow') : '') . "\n";
+// Codes SQLSTATE correspondant à « l'objet existe déjà »
+// → la migration est déjà passée manuellement, on la marque comme faite.
+const ALREADY_EXISTS_STATES = [
+    '42S01', // Table already exists
+    '42S11', // Index already exists
+    '42S21', // Column already exists
+];
+
+function isAlreadyExists(PDOException $e): bool {
+    $state = $e->getCode();
+    if (in_array($state, ALREADY_EXISTS_STATES, true)) return true;
+    // MySQL errno 1060 (dup col), 1061 (dup key), 1050 (table exists)
+    $msg = $e->getMessage();
+    return (bool) preg_match('/Duplicate (column|key|index)|already exists/i', $msg);
+}
+
+echo "\n" . c('ABAppointments – Migration runner', 'bold') . ($dryRun ? c(' [DRY-RUN]', 'yellow') : '') . ($markForce ? c(' [MARK-APPLIED]', 'yellow') : '') . "\n";
 echo str_repeat('─', 55) . "\n";
 
 $pending = 0;
@@ -73,8 +90,15 @@ foreach ($files as $file) {
     $pending++;
     echo c('  ➜  ', 'yellow') . $name . ' … ';
 
-    if ($dryRun) {
-        echo c('[dry-run, ignorée]', 'yellow') . "\n";
+    // --mark-applied : enregistrer sans exécuter (DB déjà à jour)
+    if ($markForce || $dryRun) {
+        if (!$dryRun) {
+            $pdo->exec("INSERT IGNORE INTO ab_migrations (filename) VALUES (" . $pdo->quote($name) . ")");
+            echo c('marquée comme appliquée', 'yellow') . "\n";
+            $done++;
+        } else {
+            echo c('[dry-run, ignorée]', 'yellow') . "\n";
+        }
         continue;
     }
 
@@ -85,7 +109,6 @@ foreach ($files as $file) {
     }
 
     try {
-        // Exécuter chaque instruction séparément
         $pdo->beginTransaction();
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
             if ($stmt !== '') $pdo->exec($stmt);
@@ -95,10 +118,19 @@ foreach ($files as $file) {
         echo c('OK', 'green') . "\n";
         $done++;
     } catch (PDOException $e) {
-        $pdo->rollBack();
-        echo c('ERREUR', 'red') . "\n";
-        echo c('     ' . $e->getMessage(), 'red') . "\n";
-        $errors++;
+        // Annuler la transaction uniquement si elle est toujours active
+        if ($pdo->inTransaction()) $pdo->rollBack();
+
+        if (isAlreadyExists($e)) {
+            // Schéma déjà dans l'état souhaité → marquer comme appliquée
+            $pdo->exec("INSERT IGNORE INTO ab_migrations (filename) VALUES (" . $pdo->quote($name) . ")");
+            echo c('déjà appliquée (schéma existant)', 'yellow') . "\n";
+            $done++;
+        } else {
+            echo c('ERREUR', 'red') . "\n";
+            echo c('     ' . $e->getMessage(), 'red') . "\n";
+            $errors++;
+        }
     }
 }
 
@@ -109,9 +141,12 @@ if ($pending === 0) {
 } elseif ($dryRun) {
     echo c("  {$pending} migration(s) en attente (dry-run, rien n'a été exécuté).", 'yellow') . "\n\n";
 } else {
-    $summary = "  {$done} migration(s) appliquée(s)";
+    $summary = "  {$done} migration(s) traitée(s)";
     if ($errors) $summary .= ", {$errors} erreur(s)";
     echo c($summary . '.', $errors ? 'red' : 'green') . "\n\n";
+    if ($errors === 0 && $pending > 0) {
+        echo c('  Conseil : relancez php migrate.php pour confirmer.', 'cyan') . "\n\n";
+    }
 }
 
 exit($errors ? 1 : 0);
