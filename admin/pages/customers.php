@@ -162,6 +162,121 @@ if ($action === 'edit' || $action === 'create'):
     </div>
 </div>
 
+<?php elseif ($action === 'dob_reminder_preview'):
+    Auth::requireAdmin();
+    $missing = $db->fetchAll(
+        "SELECT id, first_name, last_name, email FROM ab_customers WHERE date_of_birth IS NULL ORDER BY first_name"
+    );
+    $businessName = ab_setting('business_name', 'ABAppointments');
+    $primaryColor = ab_setting('primary_color', '#e91e63');
+    // Construire l'aperçu avec un destinataire fictif
+    $previewFirst = 'Prénom';
+    $previewLink  = '#lien-personnel';
+    $previewHtml  =
+        '<p>Bonjour <strong>' . htmlspecialchars($previewFirst) . '</strong>,</p>'
+      . '<p>Pour pouvoir continuer à prendre rendez-vous en ligne chez <strong>' . htmlspecialchars($businessName) . '</strong>, '
+      . 'nous vous invitons à compléter votre profil en renseignant votre date de naissance.</p>'
+      . '<p style="text-align:center;margin:30px 0;">'
+      . '<a href="' . $previewLink . '" style="background:' . htmlspecialchars($primaryColor) . ';color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">'
+      . 'Renseigner ma date de naissance</a></p>'
+      . '<p style="color:#999;font-size:0.85em;">Ce lien est valable 7 jours. Si vous n\'êtes pas à l\'origine de cette demande, ignorez simplement ce message.</p>';
+    $previewSubject = 'Complétez votre profil – ' . $businessName;
+?>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-envelope-exclamation"></i> Aperçu du mail de rappel DDN</h4>
+    <a href="<?= ab_url('admin/index.php?page=customers') ?>" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Retour
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Aperçu email -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="text-muted small mb-1">Objet</div>
+                <strong><?= ab_escape($previewSubject) ?></strong>
+            </div>
+            <div class="card-body p-0">
+                <iframe id="email-preview-frame" style="width:100%;border:0;min-height:340px;" scrolling="no"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Destinataires + confirmation -->
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-people"></i>
+                    <?= count($missing) ?> destinataire<?= count($missing) > 1 ? 's' : '' ?>
+                </h6>
+            </div>
+            <div style="max-height:260px;overflow-y:auto;">
+                <ul class="list-group list-group-flush">
+                    <?php foreach ($missing as $c): ?>
+                    <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">
+                        <span><?= ab_escape($c['first_name'] . ' ' . $c['last_name']) ?></span>
+                        <small class="text-muted"><?= ab_escape($c['email']) ?></small>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card border-warning">
+            <div class="card-body">
+                <p class="mb-3 text-muted small">
+                    <i class="bi bi-info-circle"></i>
+                    Chaque destinataire recevra un lien personnel valable <strong>7 jours</strong> pour renseigner sa date de naissance.
+                </p>
+                <form method="POST">
+                    <?= Auth::csrfField() ?>
+                    <input type="hidden" name="action" value="send_dob_reminders">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning fw-bold">
+                            <i class="bi bi-send"></i>
+                            Confirmer l'envoi (<?= count($missing) ?> email<?= count($missing) > 1 ? 's' : '' ?>)
+                        </button>
+                        <a href="<?= ab_url('admin/index.php?page=customers') ?>" class="btn btn-outline-secondary">
+                            Annuler
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Injecter le HTML de l'email dans l'iframe pour un rendu fidèle
+(function () {
+    const emailHtml = <?= json_encode(
+        '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+      . '<meta name="viewport" content="width=device-width,initial-scale=1.0"></head>'
+      . '<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;">'
+      . '<div style="max-width:600px;margin:20px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);">'
+      . '<div style="background:' . ab_escape($primaryColor) . ';padding:20px;text-align:center;color:#ffffff;font-size:20px;font-weight:bold;">'
+      . ab_escape($businessName)
+      . '</div>'
+      . '<div style="padding:30px;">' . $previewHtml . '</div>'
+      . '<div style="padding:15px;text-align:center;color:#999;font-size:12px;border-top:1px solid #eee;">'
+      . ab_escape($businessName) . ' - Système de rendez-vous'
+      . '</div></div></body></html>'
+    , JSON_UNESCAPED_UNICODE) ?>;
+    const frame = document.getElementById('email-preview-frame');
+    const doc = frame.contentDocument || frame.contentWindow.document;
+    doc.open(); doc.write(emailHtml); doc.close();
+    // Ajuster la hauteur à son contenu
+    frame.onload = function () {
+        frame.style.minHeight = (frame.contentWindow.document.body.scrollHeight + 20) + 'px';
+    };
+    setTimeout(function () {
+        frame.style.minHeight = (frame.contentWindow.document.body.scrollHeight + 20) + 'px';
+    }, 100);
+})();
+</script>
+
 <?php else: ?>
 <?php
 $search = trim($_GET['q'] ?? '');
@@ -179,14 +294,10 @@ $customers = $db->fetchAll($sql, $params);
     <h4 class="mb-0"><i class="bi bi-people"></i> Clients (<?= count($customers) ?>)</h4>
     <div class="d-flex gap-2">
         <?php if ($missingDobCount > 0): ?>
-        <form method="POST" onsubmit="return confirm('Envoyer un email de rappel aux <?= $missingDobCount ?> client(s) sans date de naissance ?')">
-            <?= Auth::csrfField() ?>
-            <input type="hidden" name="action" value="send_dob_reminders">
-            <button type="submit" class="btn btn-warning">
-                <i class="bi bi-envelope-exclamation"></i> Rappel DDN
-                <span class="badge bg-dark ms-1"><?= $missingDobCount ?></span>
-            </button>
-        </form>
+        <a href="<?= ab_url('admin/index.php?page=customers&action=dob_reminder_preview') ?>" class="btn btn-warning">
+            <i class="bi bi-envelope-exclamation"></i> Rappel DDN
+            <span class="badge bg-dark ms-1"><?= $missingDobCount ?></span>
+        </a>
         <?php endif; ?>
         <a href="<?= ab_url('admin/index.php?page=customers&action=create') ?>" class="btn btn-primary"><i class="bi bi-plus"></i> Nouveau</a>
     </div>
