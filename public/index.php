@@ -706,7 +706,13 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             email: document.getElementById('bf-email').value,
             phone: document.getElementById('bf-phone').value,
             notes: document.getElementById('bf-notes').value,
-            date_of_birth: document.getElementById('bf-dob').value
+            date_of_birth: document.getElementById('bf-dob').value,
+            guardian: booking.guardian ? {
+                first_name: booking.guardian.firstName,
+                last_name: booking.guardian.lastName,
+                phone: booking.guardian.phone,
+                email: booking.guardian.email,
+            } : null,
         };
 
         fetch(API_URL + '?route=book', {
@@ -717,7 +723,9 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                if (data.deposit) {
+                if (data.needs_guardian) {
+                    document.getElementById('success-message').textContent = 'Votre demande est enregistrée. Un email a été envoyé à votre accompagnateur pour confirmer sa présence. Votre rendez-vous sera validé dès sa confirmation.';
+                } else if (data.deposit) {
                     document.getElementById('success-deposit').style.display = 'block';
                     document.getElementById('success-deposit-text').textContent =
                         'Un acompte de ' + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(data.deposit.amount)

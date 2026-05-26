@@ -94,6 +94,32 @@ try {
                 ab_json(['error' => 'Date de naissance invalide (format JJ.MM.AAAA)'], 400);
             }
 
+            // Server-side age check
+            $needsGuardian = false;
+            if (ab_setting('age_check_enabled', '0') === '1') {
+                $ageMinBooking = (int) ab_setting('age_min_booking', '10');
+                $ageMinSolo    = (int) ab_setting('age_min_solo', '18');
+                $dobDate = new DateTime($dobDb);
+                $today   = new DateTime('today');
+                $age     = (int) $today->diff($dobDate)->y;
+
+                if ($ageMinBooking > 0 && $age < $ageMinBooking) {
+                    ab_json(['error' => "Vous devez avoir au moins {$ageMinBooking} ans pour réserver en ligne."], 400);
+                }
+                if ($ageMinSolo > 0 && $age < $ageMinSolo) {
+                    // Guardian required
+                    $guardian = $input['guardian'] ?? null;
+                    if (empty($guardian) || empty($guardian['first_name']) || empty($guardian['last_name'])
+                        || empty($guardian['phone']) || empty($guardian['email'])) {
+                        ab_json(['error' => 'Toutes les informations de l\'accompagnateur sont requises.'], 400);
+                    }
+                    if (!filter_var($guardian['email'], FILTER_VALIDATE_EMAIL)) {
+                        ab_json(['error' => 'L\'email de l\'accompagnateur est invalide.'], 400);
+                    }
+                    $needsGuardian = true;
+                }
+            }
+
             // Validate slot availability
             $slots = $manager->getAvailableSlots((int)$input['provider_id'], (int)$input['service_id'], $input['date']);
             if (!in_array($input['time'], $slots)) {
@@ -112,6 +138,11 @@ try {
                 'phone' => htmlspecialchars(trim($input['phone'] ?? ''), ENT_QUOTES, 'UTF-8'),
                 'notes' => htmlspecialchars(trim($input['notes'] ?? ''), ENT_QUOTES, 'UTF-8'),
                 'date_of_birth' => $dobDb,
+                'needs_guardian'       => $needsGuardian,
+                'guardian_first_name'  => $needsGuardian ? htmlspecialchars(trim($input['guardian']['first_name']), ENT_QUOTES, 'UTF-8') : null,
+                'guardian_last_name'   => $needsGuardian ? htmlspecialchars(trim($input['guardian']['last_name']), ENT_QUOTES, 'UTF-8') : null,
+                'guardian_phone'       => $needsGuardian ? htmlspecialchars(trim($input['guardian']['phone']), ENT_QUOTES, 'UTF-8') : null,
+                'guardian_email'       => $needsGuardian ? trim($input['guardian']['email']) : null,
             ]);
 
             if ($result) {
@@ -119,6 +150,7 @@ try {
                     'success' => true,
                     'hash' => $result['hash'],
                     'status' => $result['status'],
+                    'needs_guardian' => $result['needs_guardian'] ?? false,
                     'deposit' => $result['deposit'],
                     'manage_url' => ab_url('manage/' . $result['hash']),
                 ];
