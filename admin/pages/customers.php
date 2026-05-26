@@ -39,6 +39,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ab_flash('success', 'Client supprimé.');
         ab_redirect(ab_url('admin/index.php?page=customers'));
     }
+    if ($postAction === 'send_dob_reminders') {
+        Auth::requireAdmin();
+        $missing = $db->fetchAll(
+            "SELECT id, first_name, last_name, email FROM ab_customers WHERE date_of_birth IS NULL"
+        );
+        if (empty($missing)) {
+            ab_flash('success', 'Tous les clients ont déjà renseigné leur date de naissance.');
+            ab_redirect(ab_url('admin/index.php?page=customers'));
+        }
+        $mailer = new Mailer();
+        $businessName = ab_setting('business_name', 'ABAppointments');
+        $sent = 0; $failed = 0;
+        foreach ($missing as $c) {
+            $token   = bin2hex(random_bytes(24));
+            $expires = date('Y-m-d H:i:s', strtotime('+7 days'));
+            $db->update('ab_customers',
+                ['dob_token' => $token, 'dob_token_expires' => $expires],
+                'id = ?', [$c['id']]
+            );
+            $link = ab_url('public/set-dob.php?token=' . $token);
+            $html = '<p>Bonjour <strong>' . htmlspecialchars($c['first_name']) . '</strong>,</p>'
+                  . '<p>Pour pouvoir continuer à prendre rendez-vous en ligne chez <strong>' . htmlspecialchars($businessName) . '</strong>, '
+                  . 'nous vous invitons à compléter votre profil en renseignant votre date de naissance.</p>'
+                  . '<p style="text-align:center;margin:30px 0;">'
+                  . '<a href="' . $link . '" style="background:#e91e63;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">'
+                  . 'Renseigner ma date de naissance</a></p>'
+                  . '<p style="color:#999;font-size:0.85em;">Ce lien est valable 7 jours. Si vous n\'êtes pas à l\'origine de cette demande, ignorez simplement ce message.</p>';
+            if ($mailer->send($c['email'], 'Complétez votre profil – ' . $businessName, $html, $c['first_name'] . ' ' . $c['last_name'])) {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+        $msg = $sent . ' email' . ($sent > 1 ? 's' : '') . ' envoyé' . ($sent > 1 ? 's' : '');
+        if ($failed) $msg .= ', ' . $failed . ' échec' . ($failed > 1 ? 's' : '');
+        ab_flash($failed === 0 ? 'success' : 'warning', $msg);
+        ab_redirect(ab_url('admin/index.php?page=customers'));
+    }
 }
 
 $action = $_GET['action'] ?? 'list';
@@ -136,9 +174,22 @@ if ($search) {
 $sql .= " GROUP BY c.id ORDER BY c.created_at DESC";
 $customers = $db->fetchAll($sql, $params);
 ?>
+<?php $missingDobCount = $db->count('ab_customers', 'date_of_birth IS NULL'); ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-people"></i> Clients (<?= count($customers) ?>)</h4>
-    <a href="<?= ab_url('admin/index.php?page=customers&action=create') ?>" class="btn btn-primary"><i class="bi bi-plus"></i> Nouveau</a>
+    <div class="d-flex gap-2">
+        <?php if ($missingDobCount > 0): ?>
+        <form method="POST" onsubmit="return confirm('Envoyer un email de rappel aux <?= $missingDobCount ?> client(s) sans date de naissance ?')">
+            <?= Auth::csrfField() ?>
+            <input type="hidden" name="action" value="send_dob_reminders">
+            <button type="submit" class="btn btn-warning">
+                <i class="bi bi-envelope-exclamation"></i> Rappel DDN
+                <span class="badge bg-dark ms-1"><?= $missingDobCount ?></span>
+            </button>
+        </form>
+        <?php endif; ?>
+        <a href="<?= ab_url('admin/index.php?page=customers&action=create') ?>" class="btn btn-primary"><i class="bi bi-plus"></i> Nouveau</a>
+    </div>
 </div>
 <div class="card mb-3">
     <div class="card-body py-2">
