@@ -201,6 +201,13 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                             <label class="form-label">Téléphone <?= ab_setting('require_phone', '1') === '1' ? '*' : '' ?></label>
                             <input type="tel" name="phone" class="form-control" id="bf-phone" <?= ab_setting('require_phone', '1') === '1' ? 'required' : '' ?>>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Date de naissance *</label>
+                            <input type="text" name="date_of_birth" class="form-control" required id="bf-dob" placeholder="JJ.MM.AAAA" maxlength="10" autocomplete="bday">
+                        </div>
+                        <div class="col-12" id="dob-warning" style="display:none;">
+                            <div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> Vous devez renseigner votre date de naissance pour continuer.</div>
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Notes / Remarques</label>
                             <textarea name="notes" class="form-control" rows="2" id="bf-notes" placeholder="Précisez vos souhaits..."></textarea>
@@ -239,7 +246,8 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                     <small class="text-muted d-block mb-1">Vos coordonnées</small>
                     <span id="sum-name"></span><br>
                     <span id="sum-email"></span><br>
-                    <span id="sum-phone"></span>
+                    <span id="sum-phone"></span><br>
+                    <small class="text-muted">Naissance : </small><span id="sum-dob"></span>
                 </div>
 
                 <div class="mt-4 d-flex justify-content-between">
@@ -313,7 +321,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     <?php endif; ?>
     <script>
     const API_URL = '<?= ab_url('api/index.php') ?>';
-    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0 };
+    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '' };
     let currentMonth = new Date();
     let availableDaysCache = {};
 
@@ -483,9 +491,42 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             });
     }
 
+    // DOB auto-format: inserts dots after DD and MM as user types
+    document.getElementById('bf-dob').addEventListener('input', function() {
+        let v = this.value.replace(/\D/g, '');
+        if (v.length > 2) v = v.substring(0,2) + '.' + v.substring(2);
+        if (v.length > 5) v = v.substring(0,5) + '.' + v.substring(5);
+        this.value = v.substring(0, 10);
+    });
+
+    // Email blur: check-customer and show DOB warning if needed
+    document.getElementById('bf-email').addEventListener('blur', function() {
+        const email = this.value.trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+        fetch(API_URL + '?route=check-customer&email=' + encodeURIComponent(email))
+            .then(r => r.json())
+            .then(data => {
+                const warn = document.getElementById('dob-warning');
+                if (data.exists && !data.has_dob) {
+                    warn.style.display = 'block';
+                } else {
+                    warn.style.display = 'none';
+                }
+            })
+            .catch(() => {});
+    });
+
     // Step 4: Form submit
     document.getElementById('booking-form').addEventListener('submit', function(e) {
         e.preventDefault();
+        const dob = document.getElementById('bf-dob').value.trim();
+        if (!/^\d{2}\.\d{2}\.\d{4}$/.test(dob)) {
+            document.getElementById('bf-dob').focus();
+            document.getElementById('bf-dob').setCustomValidity('Veuillez entrer une date au format JJ.MM.AAAA');
+            document.getElementById('bf-dob').reportValidity();
+            return;
+        }
+        document.getElementById('bf-dob').setCustomValidity('');
         showSummary();
         goToStep(5);
     });
@@ -504,6 +545,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         document.getElementById('sum-name').textContent = document.getElementById('bf-firstname').value + ' ' + document.getElementById('bf-lastname').value;
         document.getElementById('sum-email').textContent = document.getElementById('bf-email').value;
         document.getElementById('sum-phone').textContent = document.getElementById('bf-phone').value;
+        document.getElementById('sum-dob').textContent = document.getElementById('bf-dob').value;
 
         if (booking.deposit) {
             const depAmount = booking.depositType === 'percentage' ? booking.price * booking.depositAmount / 100 : booking.depositAmount;
@@ -529,7 +571,8 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             last_name: document.getElementById('bf-lastname').value,
             email: document.getElementById('bf-email').value,
             phone: document.getElementById('bf-phone').value,
-            notes: document.getElementById('bf-notes').value
+            notes: document.getElementById('bf-notes').value,
+            date_of_birth: document.getElementById('bf-dob').value
         };
 
         fetch(API_URL + '?route=book', {

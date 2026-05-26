@@ -4,11 +4,22 @@ $db = Database::getInstance();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postAction = $_POST['action'] ?? '';
     if ($postAction === 'save') {
+        $dobRaw = trim($_POST['date_of_birth'] ?? '');
+        $dobDb = null;
+        if ($dobRaw !== '') {
+            $dobDb = ab_parse_dob($dobRaw);
+            if ($dobDb === null) {
+                ab_flash('error', 'Date de naissance invalide. Utilisez le format JJ.MM.AAAA.');
+                $redirectId = !empty($_POST['id']) ? '&action=edit&id=' . (int)$_POST['id'] : '&action=create';
+                ab_redirect(ab_url('admin/index.php?page=customers' . $redirectId));
+            }
+        }
         $data = [
             'first_name' => trim($_POST['first_name']),
             'last_name' => trim($_POST['last_name']),
             'email' => trim($_POST['email']),
             'phone' => trim($_POST['phone'] ?? ''),
+            'date_of_birth' => $dobDb,
             'address' => trim($_POST['address'] ?? ''),
             'city' => trim($_POST['city'] ?? ''),
             'zip_code' => trim($_POST['zip_code'] ?? ''),
@@ -50,6 +61,7 @@ if ($action === 'edit' || $action === 'create'):
                 <div class="col-md-6"><label class="form-label">Nom *</label><input type="text" name="last_name" class="form-control" required value="<?= ab_escape($customer['last_name'] ?? '') ?>"></div>
                 <div class="col-md-6"><label class="form-label">Email *</label><input type="email" name="email" class="form-control" required value="<?= ab_escape($customer['email'] ?? '') ?>"></div>
                 <div class="col-md-6"><label class="form-label">Téléphone</label><input type="tel" name="phone" class="form-control" value="<?= ab_escape($customer['phone'] ?? '') ?>"></div>
+                <div class="col-md-6"><label class="form-label">Date de naissance</label><input type="text" name="date_of_birth" class="form-control" placeholder="JJ.MM.AAAA" maxlength="10" value="<?= ab_escape(ab_format_dob($customer['date_of_birth'] ?? null)) ?>"></div>
                 <div class="col-12"><label class="form-label">Adresse</label><input type="text" name="address" class="form-control" value="<?= ab_escape($customer['address'] ?? '') ?>"></div>
                 <div class="col-md-6"><label class="form-label">Ville</label><input type="text" name="city" class="form-control" value="<?= ab_escape($customer['city'] ?? '') ?>"></div>
                 <div class="col-md-6"><label class="form-label">Code postal</label><input type="text" name="zip_code" class="form-control" value="<?= ab_escape($customer['zip_code'] ?? '') ?>"></div>
@@ -81,7 +93,11 @@ if ($action === 'edit' || $action === 'create'):
                 <p><i class="bi bi-geo-alt"></i> <?= ab_escape(($customer['address'] ?: '') . ' ' . ($customer['zip_code'] ?: '') . ' ' . ($customer['city'] ?: '')) ?></p>
                 <?php if ($customer['notes']): ?><p class="text-muted"><?= nl2br(ab_escape($customer['notes'])) ?></p><?php endif; ?>
                 <p class="text-muted small">Client depuis le <?= ab_format_date($customer['created_at']) ?></p>
+                <?php if (!empty($customer['date_of_birth'])): ?>
+                <p><i class="bi bi-cake"></i> <?= ab_escape(ab_format_dob($customer['date_of_birth'])) ?></p>
+                <?php endif; ?>
                 <a href="<?= ab_url('admin/index.php?page=customers&action=edit&id=' . $customer['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Modifier</a>
+                <a href="<?= ab_url('public/account.php?impersonate=' . $customer['id']) ?>" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i> Voir compte client</a>
             </div>
         </div>
     </div>
@@ -151,6 +167,7 @@ $customers = $db->fetchAll($sql, $params);
                 <td><?= $c['last_appt'] ? ab_format_date($c['last_appt']) : '-' ?></td>
                 <td>
                     <a href="<?= ab_url('admin/index.php?page=customers&action=edit&id=' . $c['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                    <a href="<?= ab_url('public/account.php?impersonate=' . $c['id']) ?>" target="_blank" class="btn btn-sm btn-outline-info" title="Voir compte client"><i class="bi bi-eye"></i></a>
                     <form method="POST" class="d-inline" onsubmit="return confirm('Supprimer ce client et tous ses rendez-vous ?')">
                         <?= Auth::csrfField() ?>
                         <input type="hidden" name="action" value="delete">

@@ -19,6 +19,15 @@ $manager = new AppointmentManager();
 
 try {
     switch ($route) {
+        case 'check-customer':
+            $email = trim($_GET['email'] ?? '');
+            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                ab_json(['exists' => false, 'has_dob' => false]);
+            }
+            $c = $db->fetchOne("SELECT id, date_of_birth FROM ab_customers WHERE email = ?", [$email]);
+            ab_json(['exists' => (bool)$c, 'has_dob' => !empty($c['date_of_birth'])]);
+            break;
+
         case 'available-days':
             $serviceId  = (int)($_GET['service_id'] ?? 0);
             $providerId = (int)($_GET['provider_id'] ?? 0);
@@ -75,6 +84,16 @@ try {
                 ab_json(['error' => 'Le téléphone est requis'], 400);
             }
 
+            // Validate and parse date_of_birth
+            $dobRaw = trim($input['date_of_birth'] ?? '');
+            if (empty($dobRaw)) {
+                ab_json(['error' => 'La date de naissance est requise'], 400);
+            }
+            $dobDb = ab_parse_dob($dobRaw);
+            if (!$dobDb) {
+                ab_json(['error' => 'Date de naissance invalide (format JJ.MM.AAAA)'], 400);
+            }
+
             // Validate slot availability
             $slots = $manager->getAvailableSlots((int)$input['provider_id'], (int)$input['service_id'], $input['date']);
             if (!in_array($input['time'], $slots)) {
@@ -92,6 +111,7 @@ try {
                 'email' => trim($input['email']),
                 'phone' => htmlspecialchars(trim($input['phone'] ?? ''), ENT_QUOTES, 'UTF-8'),
                 'notes' => htmlspecialchars(trim($input['notes'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                'date_of_birth' => $dobDb,
             ]);
 
             if ($result) {

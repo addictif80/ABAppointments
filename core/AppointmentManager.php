@@ -288,11 +288,15 @@ class AppointmentManager {
             $customer = $this->db->fetchOne("SELECT id FROM ab_customers WHERE email = ?", [$data['email']]);
             if ($customer) {
                 $customerId = $customer['id'];
-                $this->db->update('ab_customers', [
+                $dobUpdate = [];
+                if (!empty($data['date_of_birth'])) {
+                    $dobUpdate['date_of_birth'] = $data['date_of_birth'];
+                }
+                $this->db->update('ab_customers', array_merge([
                     'first_name' => $data['first_name'],
                     'last_name' => $data['last_name'],
                     'phone' => $data['phone'] ?? '',
-                ], 'id = ?', [$customerId]);
+                ], $dobUpdate), 'id = ?', [$customerId]);
             } else {
                 $customerId = $this->db->insert('ab_customers', [
                     'first_name' => $data['first_name'],
@@ -300,6 +304,7 @@ class AppointmentManager {
                     'email' => $data['email'],
                     'phone' => $data['phone'] ?? '',
                     'notes' => $data['customer_notes'] ?? '',
+                    'date_of_birth' => $data['date_of_birth'] ?? null,
                 ]);
             }
 

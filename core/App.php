@@ -126,3 +126,16 @@ function ab_json(array $data, int $code = 200): void {
 function ab_generate_hash(): string {
     return bin2hex(random_bytes(16));
 }
+
+function ab_format_dob(?string $date): string {
+    if (!$date) return '';
+    $p = explode('-', $date);
+    return count($p) === 3 ? $p[2].'.'.$p[1].'.'.$p[0] : $date;
+}
+
+function ab_parse_dob(string $dob): ?string {
+    $dob = trim($dob);
+    if (!preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $dob, $m)) return null;
+    if (!checkdate((int)$m[2], (int)$m[1], (int)$m[3])) return null;
+    return $m[3].'-'.$m[2].'-'.$m[1];
+}
