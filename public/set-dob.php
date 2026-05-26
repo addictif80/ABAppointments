@@ -53,18 +53,29 @@ if ($customer && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root { --ab-primary: <?= $primaryColor ?>; --ab-secondary: <?= $secondaryColor ?>; }
+        html, body { overflow-x: hidden; max-width: 100%; }
         body { background: #f8f9fa; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        .booking-header { background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; padding: 40px 20px; text-align: center; }
+        .booking-header { background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; padding: 40px 20px; text-align: center; position: relative; }
         .booking-header h1 { font-size: 1.8rem; margin-bottom: 5px; }
         .form-card { max-width: 440px; margin: -30px auto 40px; padding: 0 15px; }
         .card { border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-radius: 12px; }
         .btn-ab { background: var(--ab-primary); border: none; color: #fff; padding: 12px 30px; border-radius: 8px; font-weight: 600; }
         .btn-ab:hover { background: color-mix(in srgb, var(--ab-primary) 85%, black); color: #fff; }
+        .prestataire-link { position: absolute; top: 12px; right: 15px; color: rgba(255,255,255,0.7); font-size: 0.75rem; text-decoration: none; background: rgba(0,0,0,0.18); padding: 5px 12px; border-radius: 20px; transition: all 0.2s; white-space: nowrap; }
+        .prestataire-link:hover { color: #fff; background: rgba(0,0,0,0.35); }
+        @media (max-width: 480px) {
+            .booking-header { padding: 30px 15px 35px; }
+            .booking-header h1 { font-size: 1.4rem; }
+            .form-card { padding: 0 10px; }
+            .card.p-4 { padding: 1rem !important; }
+            .btn-ab { padding: 10px 18px; font-size: 0.9rem; }
+        }
     </style>
 </head>
 <body>
 
 <div class="booking-header">
+    <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
     <h1><i class="bi bi-calendar-heart"></i> <?= ab_escape($businessName) ?></h1>
     <p class="mb-0">Compléter mon profil</p>
 </div>

@@ -81,8 +81,9 @@ $showLogin = ($customer === null);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root { --ab-primary: <?= $primaryColor ?>; --ab-secondary: <?= $secondaryColor ?>; }
+        html, body { overflow-x: hidden; max-width: 100%; }
         body { background: #f8f9fa; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        .booking-header { background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; padding: 40px 20px; text-align: center; }
+        .booking-header { background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; padding: 40px 20px; text-align: center; position: relative; }
         .booking-header h1 { font-size: 1.8rem; margin-bottom: 5px; }
         .account-container { max-width: 860px; margin: -30px auto 40px; padding: 0 15px; position: relative; }
         .card { border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-radius: 12px; }
@@ -95,11 +96,27 @@ $showLogin = ($customer === null);
         .badge-confirmed { background: #198754; color: #fff; }
         .badge-cancelled { background: #dc3545; color: #fff; }
         .badge-completed { background: #0d6efd; color: #fff; }
-        .impersonation-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .impersonation-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        /* Prestataire link */
+        .prestataire-link { position: absolute; top: 12px; right: 15px; color: rgba(255,255,255,0.7); font-size: 0.75rem; text-decoration: none; background: rgba(0,0,0,0.18); padding: 5px 12px; border-radius: 20px; transition: all 0.2s; white-space: nowrap; }
+        .prestataire-link:hover { color: #fff; background: rgba(0,0,0,0.35); }
+        /* Mobile responsive */
+        @media (max-width: 480px) {
+            .booking-header { padding: 30px 15px 35px; }
+            .booking-header h1 { font-size: 1.4rem; }
+            .account-container { padding: 0 10px; }
+            .card.p-4 { padding: 1rem !important; }
+            .stat-card { padding: 12px 8px; }
+            .stat-card .stat-value { font-size: 1.4rem; }
+            .table td, .table th { font-size: 0.82rem; padding: 6px 6px; }
+            .d-flex.justify-content-between { flex-wrap: wrap; gap: 8px; }
+            .btn-ab { padding: 10px 18px; font-size: 0.9rem; }
+        }
     </style>
 </head>
 <body>
     <div class="booking-header">
+        <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
         <h1><i class="bi bi-person-circle"></i> <?= $showLogin ? 'Connexion espace client' : 'Mon espace client' ?></h1>
         <p class="mb-0"><?= ab_escape($businessName) ?></p>
     </div>

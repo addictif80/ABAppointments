@@ -32,8 +32,9 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root { --ab-primary: <?= $primaryColor ?>; --ab-secondary: <?= $secondaryColor ?>; }
+        html, body { overflow-x: hidden; max-width: 100%; }
         body { background: #f8f9fa; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        .booking-header { background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; padding: 40px 20px; text-align: center; }
+        .booking-header { background: linear-gradient(135deg, var(--ab-primary), var(--ab-secondary)); color: #fff; padding: 40px 20px; text-align: center; position: relative; }
         .booking-header h1 { font-size: 1.8rem; margin-bottom: 5px; }
         .booking-container { max-width: 800px; margin: -30px auto 40px; padding: 0 15px; position: relative; }
         .step-indicator { display: flex; justify-content: center; gap: 5px; margin-bottom: 25px; }
@@ -69,18 +70,40 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         .btn-ab:hover { background: color-mix(in srgb, var(--ab-primary) 85%, black); color: #fff; }
         .btn-ab-outline { border: 2px solid var(--ab-primary); color: var(--ab-primary); background: transparent; padding: 10px 25px; border-radius: 8px; }
         .btn-ab-outline:hover { background: var(--ab-primary); color: #fff; }
-        .summary-table td { padding: 8px 12px; }
-        .summary-table .label { color: #666; font-weight: 500; }
+        .summary-table td { padding: 8px 12px; word-break: break-word; }
+        .summary-table .label { color: #666; font-weight: 500; white-space: nowrap; }
         .deposit-info { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-top: 15px; }
         .month-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .month-nav h5 { margin: 0; }
         .loading-spinner { text-align: center; padding: 40px; color: #999; }
         .category-label { font-size: 0.85rem; color: var(--ab-primary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; padding-left: 5px; }
         .category-label:first-child { margin-top: 0; }
+        /* Prestataire link */
+        .prestataire-link { position: absolute; top: 12px; right: 15px; color: rgba(255,255,255,0.7); font-size: 0.75rem; text-decoration: none; background: rgba(0,0,0,0.18); padding: 5px 12px; border-radius: 20px; transition: all 0.2s; white-space: nowrap; }
+        .prestataire-link:hover { color: #fff; background: rgba(0,0,0,0.35); }
+        /* Mobile responsive */
+        @media (max-width: 480px) {
+            .booking-header { padding: 30px 15px 35px; }
+            .booking-header h1 { font-size: 1.4rem; }
+            .booking-container { padding: 0 10px; }
+            .card { border-radius: 10px; }
+            .card.p-4 { padding: 1rem !important; }
+            .date-picker { gap: 2px; }
+            .date-cell { padding: 6px 2px; border-radius: 6px; }
+            .date-cell .day-num { font-size: 0.9rem; }
+            .date-cell .day-name { font-size: 0.55rem; }
+            .time-slot { padding: 8px 12px; margin: 3px; font-size: 0.9rem; }
+            .btn-ab, .btn-ab-outline { padding: 10px 18px; font-size: 0.9rem; }
+            .summary-table td { padding: 6px 8px; font-size: 0.9rem; }
+            .mt-4.d-flex, .mt-3.d-flex { flex-wrap: wrap; gap: 8px; }
+            .mt-4.d-flex .btn-ab, .mt-3.d-flex .btn-ab-outline { flex: 1; text-align: center; }
+            #confirm-btn { width: 100%; }
+        }
     </style>
 </head>
 <body>
     <div class="booking-header">
+        <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
         <h1><i class="bi bi-calendar-heart"></i> <?= ab_escape($businessName) ?></h1>
         <p class="mb-2">Prenez rendez-vous en ligne</p>
         <div class="step-indicator">
