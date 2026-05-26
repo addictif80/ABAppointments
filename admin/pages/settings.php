@@ -45,6 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => ['primary_color', 'secondary_color'],
             'checkbox' => ['embed_enabled'],
         ],
+        'age_check' => [
+            'text' => ['age_min_booking', 'age_min_solo'],
+            'checkbox' => ['age_check_enabled'],
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -77,6 +81,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'smtp' ? 'active' : '' ?>" href="?page=settings&tab=smtp">Email SMTP</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'google' ? 'active' : '' ?>" href="?page=settings&tab=google">Google Calendar</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'appearance' ? 'active' : '' ?>" href="?page=settings&tab=appearance">Apparence</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'age_check' ? 'active' : '' ?>" href="?page=settings&tab=age_check">Âge minimum</a></li>
 </ul>
 
 <div class="card">
@@ -228,6 +233,41 @@ $tab = $_GET['tab'] ?? 'general';
                     </div>
                 </div>
             </div>
+            <?php elseif ($tab === 'age_check'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Configurez les restrictions d'âge pour la prise de rendez-vous en ligne.
+            Les âges sont calculés automatiquement à partir de la date de naissance renseignée par le client.
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="age_check_enabled" class="form-check-input" id="ageCheckEnabled" <?= ab_setting('age_check_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="ageCheckEnabled"><strong>Activer la vérification d'âge</strong></label>
+        </div>
+        <small class="text-muted">Si désactivé, aucune restriction d'âge n'est appliquée lors de la réservation.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-x-circle text-danger"></i> Âge minimum pour réserver (accompagné)</label>
+        <input type="number" name="age_min_booking" class="form-control" min="0" max="100" value="<?= ab_escape(ab_setting('age_min_booking', '10')) ?>">
+        <small class="text-muted">En dessous de cet âge, la réservation en ligne est impossible. Mettre 0 pour désactiver cette limite.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-person-check text-success"></i> Âge pour réserver seul(e)</label>
+        <input type="number" name="age_min_solo" class="form-control" min="0" max="100" value="<?= ab_escape(ab_setting('age_min_solo', '18')) ?>">
+        <small class="text-muted">À partir de cet âge, le client peut réserver sans accompagnateur.</small>
+    </div>
+    <div class="col-12">
+        <div class="alert alert-secondary mt-2">
+            <strong>Exemple :</strong> Âge minimum 10 ans, réservation seul à 18 ans.<br>
+            → Un client de 8 ans : réservation impossible.<br>
+            → Un client de 14 ans : réservation possible avec un accompagnateur adulte (prénom, nom, téléphone, email requis).<br>
+            → Un client de 20 ans : réservation normale.
+        </div>
+    </div>
+</div>
             <?php endif; ?>
 
             <hr>

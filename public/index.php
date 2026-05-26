@@ -18,6 +18,9 @@ $services = $db->fetchAll(
 
 $providers = $db->fetchAll("SELECT id, first_name, last_name, welcome_message FROM ab_users WHERE is_active = 1 AND is_visible_booking = 1 AND role IN ('admin','provider') ORDER BY first_name");
 $bookingAnnouncement = ab_setting('booking_announcement');
+$ageCheckEnabled = ab_setting('age_check_enabled', '0') === '1';
+$ageMinBooking = (int) ab_setting('age_min_booking', '10');
+$ageMinSolo = (int) ab_setting('age_min_solo', '18');
 $modalEnabled = ab_setting('modal_enabled', '0') === '1';
 $modalMessage = ab_setting('modal_message');
 $modalMaxViews = (int) ab_setting('modal_max_views', '3');
@@ -231,6 +234,38 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                         <div class="col-12" id="dob-warning" style="display:none;">
                             <div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> Vous devez renseigner votre date de naissance pour continuer.</div>
                         </div>
+                        <div class="col-12" id="age-blocked-msg" style="display:none;">
+                            <div class="alert alert-danger mb-0">
+                                <i class="bi bi-x-circle-fill"></i>
+                                <strong>Réservation impossible.</strong>
+                                Vous devez avoir au moins <strong><?= $ageMinBooking ?> ans</strong> pour prendre rendez-vous en ligne.
+                                Veuillez nous contacter directement.
+                            </div>
+                        </div>
+                        <div class="col-12" id="guardian-section" style="display:none;">
+                            <div class="alert alert-warning py-2 mb-2">
+                                <i class="bi bi-person-check-fill"></i>
+                                En raison de votre âge, un accompagnateur adulte est requis. Veuillez renseigner ses coordonnées.
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Prénom de l'accompagnateur *</label>
+                                    <input type="text" class="form-control" id="bf-guardian-firstname" placeholder="Prénom">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Nom de l'accompagnateur *</label>
+                                    <input type="text" class="form-control" id="bf-guardian-lastname" placeholder="Nom">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Téléphone de l'accompagnateur *</label>
+                                    <input type="tel" class="form-control" id="bf-guardian-phone" placeholder="06...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Email de l'accompagnateur *</label>
+                                    <input type="email" class="form-control" id="bf-guardian-email" placeholder="email@exemple.fr">
+                                </div>
+                            </div>
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Notes / Remarques</label>
                             <textarea name="notes" class="form-control" rows="2" id="bf-notes" placeholder="Précisez vos souhaits..."></textarea>
@@ -271,6 +306,13 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                     <span id="sum-email"></span><br>
                     <span id="sum-phone"></span><br>
                     <small class="text-muted">Naissance : </small><span id="sum-dob"></span>
+                </div>
+
+                <div id="sum-guardian" class="mt-3 p-3 rounded" style="background:#fff3cd;display:none;">
+                    <small class="text-muted d-block mb-1"><i class="bi bi-person-check-fill"></i> Accompagnateur adulte</small>
+                    <span id="sum-guardian-name" class="fw-semibold"></span><br>
+                    <span id="sum-guardian-email" class="text-muted"></span><br>
+                    <span id="sum-guardian-phone" class="text-muted"></span>
                 </div>
 
                 <div class="mt-4 d-flex justify-content-between">
@@ -344,7 +386,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     <?php endif; ?>
     <script>
     const API_URL = '<?= ab_url('api/index.php') ?>';
-    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '' };
+    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '', guardian: null };
     let currentMonth = new Date();
     let availableDaysCache = {};
 
@@ -514,12 +556,46 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             });
     }
 
+    // Age check configuration
+    const ageCheckEnabled = <?= $ageCheckEnabled ? 'true' : 'false' ?>;
+    const ageMinBooking = <?= $ageMinBooking ?>;
+    const ageMinSolo = <?= $ageMinSolo ?>;
+
+    function getAgeYears(dobStr) {
+        const p = dobStr.split('.');
+        if (p.length !== 3) return null;
+        const dob = new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+        if (isNaN(dob.getTime())) return null;
+        const now = new Date();
+        let age = now.getFullYear() - dob.getFullYear();
+        const m = now.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+        return age;
+    }
+
+    function evaluateAgeStatus(dobStr) {
+        if (!ageCheckEnabled || !/^\d{2}\.\d{2}\.\d{4}$/.test(dobStr)) return 'ok';
+        const age = getAgeYears(dobStr);
+        if (age === null) return 'ok';
+        if (ageMinBooking > 0 && age < ageMinBooking) return 'blocked';
+        if (ageMinSolo > 0 && age < ageMinSolo) return 'needs_guardian';
+        return 'ok';
+    }
+
+    function updateAgeUI() {
+        const dob = document.getElementById('bf-dob').value.trim();
+        const status = evaluateAgeStatus(dob);
+        document.getElementById('age-blocked-msg').style.display = status === 'blocked' ? 'block' : 'none';
+        document.getElementById('guardian-section').style.display = status === 'needs_guardian' ? 'block' : 'none';
+    }
+
     // DOB auto-format: inserts dots after DD and MM as user types
     document.getElementById('bf-dob').addEventListener('input', function() {
         let v = this.value.replace(/\D/g, '');
         if (v.length > 2) v = v.substring(0,2) + '.' + v.substring(2);
         if (v.length > 5) v = v.substring(0,5) + '.' + v.substring(5);
         this.value = v.substring(0, 10);
+        updateAgeUI();
     });
 
     // Email blur: check-customer and show DOB warning if needed
@@ -550,6 +626,32 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             return;
         }
         document.getElementById('bf-dob').setCustomValidity('');
+
+        const ageStatus = evaluateAgeStatus(dob);
+        if (ageStatus === 'blocked') {
+            document.getElementById('age-blocked-msg').style.display = 'block';
+            document.getElementById('age-blocked-msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        if (ageStatus === 'needs_guardian') {
+            const gFirst = document.getElementById('bf-guardian-firstname').value.trim();
+            const gLast  = document.getElementById('bf-guardian-lastname').value.trim();
+            const gPhone = document.getElementById('bf-guardian-phone').value.trim();
+            const gEmail = document.getElementById('bf-guardian-email').value.trim();
+            if (!gFirst || !gLast || !gPhone || !gEmail) {
+                document.getElementById('guardian-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                alert('Veuillez remplir toutes les informations de l\'accompagnateur.');
+                return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gEmail)) {
+                alert('L\'email de l\'accompagnateur est invalide.');
+                return;
+            }
+            booking.guardian = { firstName: gFirst, lastName: gLast, phone: gPhone, email: gEmail };
+        } else {
+            booking.guardian = null;
+        }
+
         showSummary();
         goToStep(5);
     });
@@ -569,6 +671,15 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         document.getElementById('sum-email').textContent = document.getElementById('bf-email').value;
         document.getElementById('sum-phone').textContent = document.getElementById('bf-phone').value;
         document.getElementById('sum-dob').textContent = document.getElementById('bf-dob').value;
+
+        if (booking.guardian) {
+            document.getElementById('sum-guardian').style.display = 'block';
+            document.getElementById('sum-guardian-name').textContent = booking.guardian.firstName + ' ' + booking.guardian.lastName;
+            document.getElementById('sum-guardian-email').textContent = booking.guardian.email;
+            document.getElementById('sum-guardian-phone').textContent = booking.guardian.phone;
+        } else {
+            document.getElementById('sum-guardian').style.display = 'none';
+        }
 
         if (booking.deposit) {
             const depAmount = booking.depositType === 'percentage' ? booking.price * booking.depositAmount / 100 : booking.depositAmount;
