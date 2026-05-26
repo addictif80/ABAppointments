@@ -108,19 +108,16 @@ foreach ($files as $file) {
         continue;
     }
 
+    // Pas de transaction : les DDL (ALTER/CREATE TABLE) font un commit
+    // implicite dans MySQL et ne peuvent pas être rollbackés de toute façon.
     try {
-        $pdo->beginTransaction();
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
-            if ($stmt !== '') $pdo->exec($stmt);
+            $pdo->exec($stmt);
         }
-        $pdo->exec("INSERT INTO ab_migrations (filename) VALUES (" . $pdo->quote($name) . ")");
-        $pdo->commit();
+        $pdo->exec("INSERT IGNORE INTO ab_migrations (filename) VALUES (" . $pdo->quote($name) . ")");
         echo c('OK', 'green') . "\n";
         $done++;
     } catch (PDOException $e) {
-        // Annuler la transaction uniquement si elle est toujours active
-        if ($pdo->inTransaction()) $pdo->rollBack();
-
         if (isAlreadyExists($e)) {
             // Schéma déjà dans l'état souhaité → marquer comme appliquée
             $pdo->exec("INSERT IGNORE INTO ab_migrations (filename) VALUES (" . $pdo->quote($name) . ")");
