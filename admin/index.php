@@ -16,7 +16,7 @@ if (!in_array($page, $publicPages)) {
 // Route to page
 $allowedPages = [
     'login', 'dashboard', 'appointments', 'services', 'categories',
-    'providers', 'customers', 'settings', 'working-hours', 'holidays',
+    'booking-options', 'providers', 'customers', 'settings', 'working-hours', 'holidays',
     'deposits', 'email-templates', 'google-callback', 'profile'
 ];
 
