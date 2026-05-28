@@ -244,13 +244,24 @@ try {
                 $providerLabel = $isGlobal ? '' : ($h['provider_first'] . ' ' . $h['provider_last'] . ' – ');
                 // FullCalendar end dates are exclusive — add 1 day to the inclusive date_end
                 $endExclusive = date('Y-m-d', strtotime($h['date_end'] . ' +1 day'));
+                // Use background display so the holiday shows in week/day views even with allDaySlot: false
                 $events[] = [
-                    'id'     => 'holiday-' . $h['id'],
-                    'title'  => '🔒 ' . $providerLabel . $h['title'],
-                    'start'  => $h['date_start'],
-                    'end'    => $endExclusive,
-                    'allDay' => true,
-                    'color'  => $isGlobal ? '#e57373' : '#ffb74d',
+                    'id'      => 'holiday-' . $h['id'],
+                    'title'   => '🔒 ' . $providerLabel . $h['title'],
+                    'start'   => $h['date_start'],
+                    'end'     => $endExclusive,
+                    'display' => 'background',
+                    'color'   => $isGlobal ? '#e57373' : '#ffb74d',
+                    'extendedProps' => ['type' => 'holiday'],
+                ];
+                // Regular all-day event for month view (hidden in week/day because allDaySlot: false)
+                $events[] = [
+                    'id'        => 'holiday-label-' . $h['id'],
+                    'title'     => '🔒 ' . $providerLabel . $h['title'],
+                    'start'     => $h['date_start'],
+                    'end'       => $endExclusive,
+                    'allDay'    => true,
+                    'color'     => $isGlobal ? '#e57373' : '#ffb74d',
                     'textColor' => '#fff',
                     'extendedProps' => ['type' => 'holiday'],
                 ];
