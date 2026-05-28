@@ -226,6 +226,36 @@ try {
                 ];
             }, $appointments);
 
+            // Add holidays as all-day events
+            $holidaySql = "SELECT h.id, h.title, h.date_start, h.date_end, h.provider_id,
+                                  u.first_name as provider_first, u.last_name as provider_last
+                           FROM ab_holidays h
+                           LEFT JOIN ab_users u ON h.provider_id = u.id
+                           WHERE h.date_end >= ? AND h.date_start <= ?";
+            $holidayParams = [$start, $end];
+            if ($providerId) {
+                $holidaySql .= " AND (h.provider_id = ? OR h.provider_id IS NULL)";
+                $holidayParams[] = $providerId;
+            }
+            $holidays = $db->fetchAll($holidaySql, $holidayParams);
+
+            foreach ($holidays as $h) {
+                $isGlobal = $h['provider_id'] === null;
+                $providerLabel = $isGlobal ? '' : ($h['provider_first'] . ' ' . $h['provider_last'] . ' – ');
+                // FullCalendar end dates are exclusive — add 1 day to the inclusive date_end
+                $endExclusive = date('Y-m-d', strtotime($h['date_end'] . ' +1 day'));
+                $events[] = [
+                    'id'     => 'holiday-' . $h['id'],
+                    'title'  => '🔒 ' . $providerLabel . $h['title'],
+                    'start'  => $h['date_start'],
+                    'end'    => $endExclusive,
+                    'allDay' => true,
+                    'color'  => $isGlobal ? '#e57373' : '#ffb74d',
+                    'textColor' => '#fff',
+                    'extendedProps' => ['type' => 'holiday'],
+                ];
+            }
+
             ab_json($events);
             break;
 

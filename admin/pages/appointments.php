@@ -357,6 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
             height: 'auto',
             events: '<?= ab_url('api/index.php?route=calendar-events') ?>',
             eventClick: function(info) {
+                if (info.event.extendedProps.type === 'holiday') return;
                 window.location.href = '<?= ab_url('admin/index.php?page=appointments&action=view&id=') ?>' + info.event.id;
             }
         });
