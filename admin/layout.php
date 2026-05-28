@@ -69,6 +69,9 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
             <a href="<?= ab_url('admin/index.php?page=categories') ?>" class="nav-link <?= $currentPage === 'categories' ? 'active' : '' ?>">
                 <i class="bi bi-tags"></i> Catégories
             </a>
+            <a href="<?= ab_url('admin/index.php?page=booking-options') ?>" class="nav-link <?= $currentPage === 'booking-options' ? 'active' : '' ?>">
+                <i class="bi bi-plus-square"></i> Options
+            </a>
             <?php if ($isAdmin): ?>
             <a href="<?= ab_url('admin/index.php?page=providers') ?>" class="nav-link <?= $currentPage === 'providers' ? 'active' : '' ?>">
                 <i class="bi bi-person-badge"></i> Prestataires

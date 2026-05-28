@@ -266,6 +266,14 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                                 </div>
                             </div>
                         </div>
+                        <div class="col-12" id="options-section" style="display:none;">
+                            <hr class="my-2">
+                            <h6 class="mb-2"><i class="bi bi-plus-square"></i> Options</h6>
+                            <div id="options-list"></div>
+                            <div id="options-total-bar" class="alert alert-primary py-2 mt-2 mb-0" style="display:none;">
+                                <i class="bi bi-calculator"></i> <span id="options-total-text"></span>
+                            </div>
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Notes / Remarques</label>
                             <textarea name="notes" class="form-control" rows="2" id="bf-notes" placeholder="Précisez vos souhaits..."></textarea>
@@ -386,7 +394,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     <?php endif; ?>
     <script>
     const API_URL = '<?= ab_url('api/index.php') ?>';
-    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '', guardian: null };
+    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '', guardian: null, selectedOptions: [] };
     let currentMonth = new Date();
     let availableDaysCache = {};
 
@@ -400,6 +408,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             d.classList.toggle('done', step < n);
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (n === 4) loadBookingOptions();
     }
 
     // Step 1: Service selection

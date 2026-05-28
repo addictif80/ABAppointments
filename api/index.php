@@ -94,6 +94,12 @@ try {
                 ab_json(['error' => 'Date de naissance invalide (format JJ.MM.AAAA)'], 400);
             }
 
+            // Parse selected option IDs
+            $selectedOptionIds = array_values(array_filter(
+                array_map('intval', $input['options'] ?? []),
+                fn($id) => $id > 0
+            ));
+
             // Server-side age check
             $needsGuardian = false;
             if (ab_setting('age_check_enabled', '0') === '1') {
@@ -143,6 +149,7 @@ try {
                 'guardian_last_name'   => $needsGuardian ? htmlspecialchars(trim($input['guardian']['last_name']), ENT_QUOTES, 'UTF-8') : null,
                 'guardian_phone'       => $needsGuardian ? htmlspecialchars(trim($input['guardian']['phone']), ENT_QUOTES, 'UTF-8') : null,
                 'guardian_email'       => $needsGuardian ? trim($input['guardian']['email']) : null,
+                'options'              => $selectedOptionIds,
             ]);
 
             if ($result) {
@@ -268,6 +275,23 @@ try {
             }
 
             ab_json($events);
+            break;
+
+        case 'booking-options':
+            $serviceId = (int)($_GET['service_id'] ?? 0);
+            if (!$serviceId) ab_json(['error' => 'service_id requis'], 400);
+            $options = $db->fetchAll(
+                "SELECT o.id, o.name, o.description, o.price_type, o.price_value
+                 FROM ab_booking_options o
+                 WHERE o.is_active = 1
+                   AND (
+                     NOT EXISTS (SELECT 1 FROM ab_booking_option_services bos WHERE bos.option_id = o.id)
+                     OR EXISTS  (SELECT 1 FROM ab_booking_option_services bos WHERE bos.option_id = o.id AND bos.service_id = ?)
+                   )
+                 ORDER BY o.sort_order, o.name",
+                [$serviceId]
+            );
+            ab_json(['options' => $options]);
             break;
 
         case 'services':

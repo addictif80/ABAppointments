@@ -361,6 +361,28 @@ class AppointmentManager {
                 ];
             }
 
+            // Save selected options inside transaction
+            $savedOptions = [];
+            if (!empty($data['options'])) {
+                $placeholders = implode(',', array_fill(0, count($data['options']), '?'));
+                $validOpts = $this->db->fetchAll(
+                    "SELECT id, name, price_type, price_value FROM ab_booking_options WHERE id IN ($placeholders) AND is_active = 1",
+                    $data['options']
+                );
+                foreach ($validOpts as $opt) {
+                    $optPrice = $opt['price_type'] === 'percentage'
+                        ? round($service['price'] * (float)$opt['price_value'] / 100, 2)
+                        : (float)$opt['price_value'];
+                    $this->db->insert('ab_appointment_options', [
+                        'appointment_id' => $appointmentId,
+                        'option_id'      => $opt['id'],
+                        'option_name'    => $opt['name'],
+                        'option_price'   => $optPrice,
+                    ]);
+                    $savedOptions[] = ['name' => $opt['name'], 'price' => $optPrice];
+                }
+            }
+
             $this->db->commit();
 
             return [
@@ -369,6 +391,7 @@ class AppointmentManager {
                 'status' => $status,
                 'deposit' => $depositInfo,
                 'needs_guardian' => $needsGuardian,
+                'options' => $savedOptions,
             ];
 
         } catch (Exception $e) {
@@ -555,6 +578,35 @@ class AppointmentManager {
         $customerName = $appointment['customer_first_name'] . ' ' . $appointment['customer_last_name'];
         $businessName = ab_setting('business_name');
 
+        // Build options summary HTML for emails
+        $appointmentOptions = $this->db->fetchAll(
+            "SELECT option_name, option_price FROM ab_appointment_options WHERE appointment_id = ? ORDER BY id",
+            [$appointmentId]
+        );
+        $optionsHtml = '';
+        $optionsTotal = 0.0;
+        foreach ($appointmentOptions as $ao) {
+            $optionsTotal += (float)$ao['option_price'];
+            $optionsHtml .= '<tr><td style="padding:4px 12px;color:#666;">'
+                . ab_escape($ao['option_name']) . '</td>'
+                . '<td style="padding:4px 12px;text-align:right;">+'
+                . number_format((float)$ao['option_price'], 2, ',', ' ') . ' €</td></tr>';
+        }
+        $totalPrice = (float)$appointment['service_price'] + $optionsTotal;
+        $optionsSummaryHtml = '';
+        if ($optionsTotal > 0) {
+            $optionsSummaryHtml = '<div style="margin:15px 0;padding:12px 15px;background:#f8f9fa;border-radius:6px;border-left:3px solid #e91e63;">'
+                . '<strong>Détail du tarif :</strong>'
+                . '<table style="width:100%;margin-top:8px;">'
+                . '<tr><td style="padding:4px 12px;color:#666;">Prestation</td>'
+                . '<td style="padding:4px 12px;text-align:right;">' . number_format((float)$appointment['service_price'], 2, ',', ' ') . ' €</td></tr>'
+                . $optionsHtml
+                . '<tr style="border-top:1px solid #dee2e6;font-weight:bold;">'
+                . '<td style="padding:8px 12px;">Total</td>'
+                . '<td style="padding:8px 12px;text-align:right;">' . number_format($totalPrice, 2, ',', ' ') . ' €</td></tr>'
+                . '</table></div>';
+        }
+
         // If guardian required: send guardian-specific emails instead
         if (!empty($appointment['needs_guardian'])) {
             $this->sendGuardianNotifications($appointment, $mailer, $customerName, $businessName);
@@ -582,6 +634,9 @@ class AppointmentManager {
             ]);
         }
 
+        // Prepend options summary to deposit section
+        $depositSection = $optionsSummaryHtml . $depositSection;
+
         // Send customer email
         $templateSlug = ($status === 'confirmed') ? 'appointment_confirmed' : 'appointment_pending';
         $mailer->sendTemplate($templateSlug, $appointment['customer_email'], [
@@ -606,6 +661,7 @@ class AppointmentManager {
             'appointment_date' => ab_format_date($appointment['start_datetime']),
             'appointment_time' => ab_format_time($appointment['start_datetime']),
             'admin_url' => ab_url('admin/index.php?page=appointments'),
+            'options_summary' => $optionsSummaryHtml,
         ];
 
         if ($adminEmail) {
