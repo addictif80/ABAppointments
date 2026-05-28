@@ -420,6 +420,62 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         if (n === 4) loadBookingOptions();
     }
 
+    function loadBookingOptions() {
+        if (!booking.serviceId) return;
+        const section = document.getElementById('options-section');
+        const list = document.getElementById('options-list');
+        list.innerHTML = '<div class="text-muted small"><i class="bi bi-hourglass-split"></i> Chargement…</div>';
+        section.style.display = 'block';
+        fetch(API_URL + '?route=booking-options&service_id=' + booking.serviceId)
+            .then(r => r.json())
+            .then(data => {
+                const opts = data.options || [];
+                if (!opts.length) { section.style.display = 'none'; return; }
+                let html = '';
+                opts.forEach(opt => {
+                    const pv = parseFloat(opt.price_value);
+                    const priceLabel = pv === 0 ? 'Gratuit'
+                        : (opt.price_type === 'percentage' ? '+' + pv + '%' : '+' + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(pv));
+                    html += '<div class="form-check mb-2">'
+                        + '<input class="form-check-input opt-cb" type="checkbox" id="opt-' + opt.id + '" value="' + opt.id + '"'
+                        + ' data-price-type="' + opt.price_type + '" data-price-value="' + pv + '" data-name="' + opt.name.replace(/"/g, '&quot;') + '">'
+                        + '<label class="form-check-label" for="opt-' + opt.id + '">'
+                        + '<span>' + opt.name.replace(/</g,'&lt;') + '</span>'
+                        + ' <span class="text-muted small">(' + priceLabel + ')</span>'
+                        + '</label>'
+                        + (opt.description ? '<div class="text-muted small ms-4">' + opt.description.replace(/</g,'&lt;') + '</div>' : '')
+                        + '</div>';
+                });
+                list.innerHTML = html;
+                document.querySelectorAll('.opt-cb').forEach(cb => cb.addEventListener('change', updateOptionsTotal));
+                updateOptionsTotal();
+            })
+            .catch(() => { section.style.display = 'none'; });
+    }
+
+    function updateOptionsTotal() {
+        const checks = document.querySelectorAll('.opt-cb:checked');
+        let total = 0;
+        booking.selectedOptions = [];
+        checks.forEach(cb => {
+            const pv = parseFloat(cb.dataset.priceValue);
+            const price = cb.dataset.priceType === 'percentage' ? booking.price * pv / 100 : pv;
+            total += price;
+            booking.selectedOptions.push({ id: parseInt(cb.value, 10), name: cb.dataset.name, price: price });
+        });
+        const bar = document.getElementById('options-total-bar');
+        const txt = document.getElementById('options-total-text');
+        if (total > 0) {
+            const grand = booking.price + total;
+            txt.textContent = 'Prestation ' + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(booking.price)
+                + ' + options ' + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(total)
+                + ' = Total ' + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(grand);
+            bar.style.display = 'block';
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
     // Step 1: Service selection
     document.querySelectorAll('.service-card').forEach(card => {
         card.addEventListener('click', function() {
