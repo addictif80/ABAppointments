@@ -316,6 +316,15 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                     <small class="text-muted">Naissance : </small><span id="sum-dob"></span>
                 </div>
 
+                <div id="sum-options" class="mt-3 p-3 bg-light rounded" style="display:none;">
+                    <small class="text-muted d-block mb-2"><i class="bi bi-plus-square"></i> Options sélectionnées</small>
+                    <div id="sum-options-list"></div>
+                    <div class="d-flex justify-content-between fw-bold mt-2 pt-2 border-top">
+                        <span>Total</span>
+                        <span id="sum-total-price"></span>
+                    </div>
+                </div>
+
                 <div id="sum-guardian" class="mt-3 p-3 rounded" style="background:#fff3cd;display:none;">
                     <small class="text-muted d-block mb-1"><i class="bi bi-person-check-fill"></i> Accompagnateur adulte</small>
                     <span id="sum-guardian-name" class="fw-semibold"></span><br>
@@ -681,6 +690,22 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         document.getElementById('sum-phone').textContent = document.getElementById('bf-phone').value;
         document.getElementById('sum-dob').textContent = document.getElementById('bf-dob').value;
 
+        if (booking.selectedOptions.length > 0) {
+            let optHtml = '';
+            let optTotal = 0;
+            booking.selectedOptions.forEach(o => {
+                optTotal += o.price;
+                const fmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+                optHtml += '<div class="d-flex justify-content-between small mb-1"><span>' + o.name.replace(/</g,'&lt;') + '</span><span>+' + fmt.format(o.price) + '</span></div>';
+            });
+            document.getElementById('sum-options-list').innerHTML = optHtml;
+            const fmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+            document.getElementById('sum-total-price').textContent = fmt.format(booking.price + optTotal);
+            document.getElementById('sum-options').style.display = 'block';
+        } else {
+            document.getElementById('sum-options').style.display = 'none';
+        }
+
         if (booking.guardian) {
             document.getElementById('sum-guardian').style.display = 'block';
             document.getElementById('sum-guardian-name').textContent = booking.guardian.firstName + ' ' + booking.guardian.lastName;
@@ -722,6 +747,7 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                 phone: booking.guardian.phone,
                 email: booking.guardian.email,
             } : null,
+            options: booking.selectedOptions.map(o => o.id),
         };
 
         fetch(API_URL + '?route=book', {
