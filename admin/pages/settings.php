@@ -49,6 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => ['age_min_booking', 'age_min_solo'],
             'checkbox' => ['age_check_enabled'],
         ],
+        'cgv_cgs' => [
+            'text' => ['cgv_label', 'cgv_url', 'cgs_label', 'cgs_url'],
+            'checkbox' => ['cgv_enabled', 'cgs_enabled'],
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -82,6 +86,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'google' ? 'active' : '' ?>" href="?page=settings&tab=google">Google Calendar</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'appearance' ? 'active' : '' ?>" href="?page=settings&tab=appearance">Apparence</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'age_check' ? 'active' : '' ?>" href="?page=settings&tab=age_check">Âge minimum</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'cgv_cgs' ? 'active' : '' ?>" href="?page=settings&tab=cgv_cgs">CGV / CGS</a></li>
 </ul>
 
 <div class="card">
@@ -266,6 +271,49 @@ $tab = $_GET['tab'] ?? 'general';
             → Un client de 14 ans : réservation possible avec un accompagnateur adulte (prénom, nom, téléphone, email requis).<br>
             → Un client de 20 ans : réservation normale.
         </div>
+    </div>
+</div>
+            <?php elseif ($tab === 'cgv_cgs'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Configurez les conditions générales à accepter lors de la réservation en ligne. Chaque case à cocher est indépendante et peut être activée séparément.
+        </div>
+    </div>
+    <div class="col-12"><hr class="mt-0"><h6 class="text-muted text-uppercase small">Conditions générales de vente (CGV)</h6></div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="cgv_enabled" class="form-check-input" id="cgvEnabled" <?= ab_setting('cgv_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="cgvEnabled"><strong>Activer la case CGV</strong></label>
+        </div>
+        <small class="text-muted">Le client devra cocher cette case avant de valider son rendez-vous.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Texte du lien</label>
+        <input type="text" name="cgv_label" class="form-control" value="<?= ab_escape(ab_setting('cgv_label', 'les conditions générales de vente')) ?>" placeholder="les conditions générales de vente">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">URL des CGV</label>
+        <input type="url" name="cgv_url" class="form-control" value="<?= ab_escape(ab_setting('cgv_url')) ?>" placeholder="https://exemple.fr/cgv">
+        <small class="text-muted">Laissez vide pour afficher le texte sans lien cliquable.</small>
+    </div>
+    <div class="col-12"><hr class="mb-0"><h6 class="text-muted text-uppercase small mt-3">Conditions générales de services (CGS)</h6></div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="cgs_enabled" class="form-check-input" id="cgsEnabled" <?= ab_setting('cgs_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="cgsEnabled"><strong>Activer la case CGS</strong></label>
+        </div>
+        <small class="text-muted">Le client devra cocher cette case avant de valider son rendez-vous.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Texte du lien</label>
+        <input type="text" name="cgs_label" class="form-control" value="<?= ab_escape(ab_setting('cgs_label', 'les conditions générales de services')) ?>" placeholder="les conditions générales de services">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">URL des CGS</label>
+        <input type="url" name="cgs_url" class="form-control" value="<?= ab_escape(ab_setting('cgs_url')) ?>" placeholder="https://exemple.fr/cgs">
+        <small class="text-muted">Laissez vide pour afficher le texte sans lien cliquable.</small>
     </div>
 </div>
             <?php endif; ?>

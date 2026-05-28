@@ -21,6 +21,12 @@ $bookingAnnouncement = ab_setting('booking_announcement');
 $ageCheckEnabled = ab_setting('age_check_enabled', '0') === '1';
 $ageMinBooking = (int) ab_setting('age_min_booking', '10');
 $ageMinSolo = (int) ab_setting('age_min_solo', '18');
+$cgvEnabled = ab_setting('cgv_enabled', '0') === '1';
+$cgvLabel   = ab_setting('cgv_label', 'les conditions générales de vente');
+$cgvUrl     = ab_setting('cgv_url');
+$cgsEnabled = ab_setting('cgs_enabled', '0') === '1';
+$cgsLabel   = ab_setting('cgs_label', 'les conditions générales de services');
+$cgsUrl     = ab_setting('cgs_url');
 $modalEnabled = ab_setting('modal_enabled', '0') === '1';
 $modalMessage = ab_setting('modal_message');
 $modalMaxViews = (int) ab_setting('modal_max_views', '3');
@@ -278,6 +284,27 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
                             <label class="form-label">Notes / Remarques</label>
                             <textarea name="notes" class="form-control" rows="2" id="bf-notes" placeholder="Précisez vos souhaits..."></textarea>
                         </div>
+                        <?php if ($cgvEnabled || $cgsEnabled): ?>
+                        <div class="col-12" id="terms-section">
+                            <hr class="my-1">
+                            <?php if ($cgvEnabled): ?>
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="accept-cgv" required>
+                                <label class="form-check-label" for="accept-cgv">
+                                    J'accepte <?php if ($cgvUrl): ?><a href="<?= ab_escape($cgvUrl) ?>" target="_blank" rel="noopener"><?= ab_escape($cgvLabel) ?></a><?php else: ?><?= ab_escape($cgvLabel) ?><?php endif; ?> *
+                                </label>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ($cgsEnabled): ?>
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="accept-cgs" required>
+                                <label class="form-check-label" for="accept-cgs">
+                                    J'accepte <?php if ($cgsUrl): ?><a href="<?= ab_escape($cgsUrl) ?>" target="_blank" rel="noopener"><?= ab_escape($cgsLabel) ?></a><?php else: ?><?= ab_escape($cgsLabel) ?><?php endif; ?> *
+                                </label>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <div class="mt-3 d-flex justify-content-between">
                         <button type="button" class="btn btn-ab-outline btn-sm" onclick="goToStep(3)"><i class="bi bi-arrow-left"></i> Retour</button>
@@ -725,6 +752,22 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         } else {
             booking.guardian = null;
         }
+
+        // Terms validation
+        const cgvBox = document.getElementById('accept-cgv');
+        const cgsBox = document.getElementById('accept-cgs');
+        if (cgvBox && !cgvBox.checked) {
+            cgvBox.setCustomValidity('Vous devez accepter les CGV pour continuer.');
+            cgvBox.reportValidity();
+            return;
+        }
+        if (cgvBox) cgvBox.setCustomValidity('');
+        if (cgsBox && !cgsBox.checked) {
+            cgsBox.setCustomValidity('Vous devez accepter les CGS pour continuer.');
+            cgsBox.reportValidity();
+            return;
+        }
+        if (cgsBox) cgsBox.setCustomValidity('');
 
         showSummary();
         goToStep(5);
