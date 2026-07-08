@@ -64,6 +64,66 @@ const ALREADY_EXISTS_STATES = [
     '42S21', // Column already exists
 ];
 
+// Splits a .sql file into individual statements on top-level ';' only —
+// unlike a naive explode(';', ...), this ignores semicolons that appear
+// inside quoted strings (e.g. inline CSS in HTML email templates) or
+// backtick identifiers, and skips '--' line comments.
+function splitSqlStatements(string $sql): array {
+    $statements = [];
+    $current = '';
+    $len = strlen($sql);
+    $inString = false;
+    $inBacktick = false;
+
+    for ($i = 0; $i < $len; $i++) {
+        $ch = $sql[$i];
+
+        if ($inString) {
+            $current .= $ch;
+            if ($ch === '\\') {
+                if ($i + 1 < $len) { $current .= $sql[++$i]; }
+                continue;
+            }
+            if ($ch === "'") {
+                if ($i + 1 < $len && $sql[$i + 1] === "'") {
+                    $current .= $sql[++$i]; // escaped '' quote, string continues
+                } else {
+                    $inString = false;
+                }
+            }
+            continue;
+        }
+
+        if ($inBacktick) {
+            $current .= $ch;
+            if ($ch === '`') { $inBacktick = false; }
+            continue;
+        }
+
+        if ($ch === '-' && $i + 1 < $len && $sql[$i + 1] === '-') {
+            $nl = strpos($sql, "\n", $i);
+            if ($nl === false) { break; }
+            $current .= substr($sql, $i, $nl - $i + 1);
+            $i = $nl;
+            continue;
+        }
+
+        if ($ch === "'") { $inString = true; $current .= $ch; continue; }
+        if ($ch === '`') { $inBacktick = true; $current .= $ch; continue; }
+
+        if ($ch === ';') {
+            $statements[] = $current;
+            $current = '';
+            continue;
+        }
+
+        $current .= $ch;
+    }
+    if (trim($current) !== '') { $statements[] = $current; }
+
+    return array_values(array_filter(array_map('trim', $statements), fn($s) => $s !== ''));
+}
+
 function isAlreadyExists(PDOException $e): bool {
     $state = $e->getCode();
     if (in_array($state, ALREADY_EXISTS_STATES, true)) return true;
@@ -111,7 +171,7 @@ foreach ($files as $file) {
     // Pas de transaction : les DDL (ALTER/CREATE TABLE) font un commit
     // implicite dans MySQL et ne peuvent pas être rollbackés de toute façon.
     try {
-        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
+        foreach (splitSqlStatements($sql) as $stmt) {
             $pdo->exec($stmt);
         }
         $pdo->exec("INSERT IGNORE INTO ab_migrations (filename) VALUES (" . $pdo->quote($name) . ")");
