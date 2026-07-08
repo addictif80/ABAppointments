@@ -53,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => ['cgv_label', 'cgv_url', 'cgs_label', 'cgs_url'],
             'checkbox' => ['cgv_enabled', 'cgs_enabled'],
         ],
+        'reviews' => [
+            'text' => ['google_review_url', 'google_review_threshold'],
+            'checkbox' => ['google_review_prompt_enabled'],
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -87,6 +91,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'appearance' ? 'active' : '' ?>" href="?page=settings&tab=appearance">Apparence</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'age_check' ? 'active' : '' ?>" href="?page=settings&tab=age_check">Âge minimum</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'cgv_cgs' ? 'active' : '' ?>" href="?page=settings&tab=cgv_cgs">CGV / CGS</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'reviews' ? 'active' : '' ?>" href="?page=settings&tab=reviews">Avis clients</a></li>
 </ul>
 
 <div class="card">
@@ -314,6 +319,37 @@ $tab = $_GET['tab'] ?? 'general';
         <label class="form-label">URL des CGS</label>
         <input type="url" name="cgs_url" class="form-control" value="<?= ab_escape(ab_setting('cgs_url')) ?>" placeholder="https://exemple.fr/cgs">
         <small class="text-muted">Laissez vide pour afficher le texte sans lien cliquable.</small>
+    </div>
+</div>
+            <?php elseif ($tab === 'reviews'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Après un avis interne positif, proposez au client de le partager aussi sur votre fiche Google Business (Google ne permet pas de publier automatiquement des avis clients via une API).
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="google_review_prompt_enabled" class="form-check-input" id="googleReviewPromptEnabled" <?= ab_setting('google_review_prompt_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="googleReviewPromptEnabled"><strong>Proposer de noter aussi sur Google</strong></label>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <label class="form-label">Lien "Laisser un avis Google"</label>
+        <input type="url" name="google_review_url" class="form-control" value="<?= ab_escape(ab_setting('google_review_url')) ?>" placeholder="https://g.page/r/xxxxxxxx/review">
+        <small class="text-muted">Trouvez ce lien dans votre fiche Google Business Profile ("Obtenir plus d'avis").</small>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Note minimale requise</label>
+        <input type="number" name="google_review_threshold" class="form-control" min="1" max="5" value="<?= ab_escape(ab_setting('google_review_threshold', '4')) ?>">
+        <small class="text-muted">Le lien Google n'est proposé qu'à partir de cette note (sur 5).</small>
+    </div>
+    <div class="col-12"><hr><h6 class="text-muted text-uppercase small">Widget d'avis intégrable</h6></div>
+    <div class="col-12">
+        <label class="form-label">Code à intégrer sur votre site (iframe)</label>
+        <textarea class="form-control" rows="3" readonly onclick="this.select()"><iframe src="<?= ab_escape(ab_url('public/reviews-widget.php')) ?>" style="width:100%;max-width:900px;border:0;height:420px;" loading="lazy"></iframe></textarea>
+        <small class="text-muted">Copiez ce code dans une page HTML pour afficher vos avis (note moyenne + derniers avis approuvés) sur votre site.</small>
     </div>
 </div>
             <?php endif; ?>

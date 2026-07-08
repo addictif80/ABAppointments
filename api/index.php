@@ -207,6 +207,51 @@ try {
             }
             break;
 
+        case 'waitlist-join':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                ab_json(['error' => 'Méthode non autorisée'], 405);
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input) {
+                ab_json(['error' => 'Données invalides'], 400);
+            }
+
+            $required = ['service_id', 'first_name', 'last_name', 'email', 'desired_date_start', 'desired_date_end'];
+            foreach ($required as $field) {
+                if (empty($input[$field])) {
+                    ab_json(['error' => "Le champ '$field' est requis"], 400);
+                }
+            }
+
+            if (!filter_var($input['email'], FILTER_VALIDATE_EMAIL)) {
+                ab_json(['error' => 'Email invalide'], 400);
+            }
+
+            $service = $db->fetchOne("SELECT id FROM ab_services WHERE id = ? AND is_active = 1", [(int)$input['service_id']]);
+            if (!$service) {
+                ab_json(['error' => 'Prestation invalide'], 400);
+            }
+
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['desired_date_start']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['desired_date_end'])) {
+                ab_json(['error' => 'Dates invalides'], 400);
+            }
+
+            $waitlist = new Waitlist();
+            $waitlist->join([
+                'service_id' => (int)$input['service_id'],
+                'provider_id' => (int)($input['provider_id'] ?? 0),
+                'first_name' => htmlspecialchars(trim($input['first_name']), ENT_QUOTES, 'UTF-8'),
+                'last_name' => htmlspecialchars(trim($input['last_name']), ENT_QUOTES, 'UTF-8'),
+                'email' => trim($input['email']),
+                'phone' => htmlspecialchars(trim($input['phone'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                'desired_date_start' => $input['desired_date_start'],
+                'desired_date_end' => $input['desired_date_end'],
+            ]);
+
+            ab_json(['success' => true]);
+            break;
+
         case 'calendar-events':
             // For admin calendar (FullCalendar)
             if (!Auth::check()) {
