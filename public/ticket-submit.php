@@ -42,7 +42,8 @@ if ($action === 'create') {
         if ($firstName === '' || $lastName === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             ab_json(['error' => 'Merci de renseigner votre nom, prénom et un email valide.'], 400);
         }
-        $customerId = $tickets->resolveCustomer($firstName, $lastName, $email, trim($_POST['phone'] ?? ''));
+        $dob = ab_parse_dob(trim($_POST['date_of_birth'] ?? ''));
+        $customerId = $tickets->resolveCustomer($firstName, $lastName, $email, trim($_POST['phone'] ?? ''), $dob);
     }
 
     $ticket = $tickets->create([
