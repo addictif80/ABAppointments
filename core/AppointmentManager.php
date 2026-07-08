@@ -437,6 +437,52 @@ class AppointmentManager {
     }
 
     /**
+     * Reschedule an appointment to a new start date/time (provider/admin action)
+     * Returns ['success' => bool, 'error' => string|null]
+     */
+    public function reschedule(int $appointmentId, string $newStartDatetime): array {
+        $appointment = $this->getAppointment($appointmentId);
+        if (!$appointment) return ['success' => false, 'error' => 'not_found'];
+        if ($appointment['status'] === 'cancelled') return ['success' => false, 'error' => 'cancelled'];
+
+        $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ?", [$appointment['service_id']]);
+        if (!$service) return ['success' => false, 'error' => 'service_not_found'];
+
+        $newEndDatetime = date('Y-m-d H:i:s', strtotime($newStartDatetime) + ($service['duration'] * 60));
+
+        // Check for conflicts with the provider's other appointments
+        $conflict = $this->db->fetchOne(
+            "SELECT id FROM ab_appointments
+             WHERE provider_id = ? AND id != ? AND status NOT IN ('cancelled')
+               AND start_datetime < ? AND end_datetime > ?",
+            [$appointment['provider_id'], $appointmentId, $newEndDatetime, $newStartDatetime]
+        );
+        if ($conflict) return ['success' => false, 'error' => 'conflict'];
+
+        $oldDate = ab_format_date($appointment['start_datetime']);
+        $oldTime = ab_format_time($appointment['start_datetime']);
+
+        $this->db->update('ab_appointments', [
+            'start_datetime' => $newStartDatetime,
+            'end_datetime' => $newEndDatetime,
+        ], 'id = ?', [$appointmentId]);
+
+        $updated = $this->getAppointment($appointmentId);
+        $this->sendRescheduleEmail($updated, $oldDate, $oldTime);
+
+        try {
+            $caldav = new CalDAV();
+            if ($caldav->isEnabledFor($updated['provider_id'])) {
+                $caldav->syncAppointment($appointmentId);
+            }
+        } catch (Exception $e) {
+            error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
+        }
+
+        return ['success' => true];
+    }
+
+    /**
      * Confirm deposit payment
      */
     public function confirmDeposit(int $depositId, string $paymentMethod = 'bank_transfer', string $reference = ''): bool {
@@ -829,5 +875,21 @@ class AppointmentManager {
         }
 
         $mailer->sendTemplate($template, $appointment['customer_email'], $vars);
+    }
+
+    private function sendRescheduleEmail(array $appointment, string $oldDate, string $oldTime): void {
+        $mailer = new Mailer();
+        $customerName = $appointment['customer_first_name'] . ' ' . $appointment['customer_last_name'];
+
+        $mailer->sendTemplate('appointment_modified', $appointment['customer_email'], [
+            'customer_name' => $customerName,
+            'service_name' => $appointment['service_name'],
+            'old_date' => $oldDate,
+            'old_time' => $oldTime,
+            'appointment_date' => ab_format_date($appointment['start_datetime']),
+            'appointment_time' => ab_format_time($appointment['start_datetime']),
+            'business_name' => ab_setting('business_name'),
+            'manage_url' => ab_url('manage/' . $appointment['hash']),
+        ]);
     }
 }
