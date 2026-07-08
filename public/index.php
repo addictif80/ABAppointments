@@ -29,6 +29,11 @@ $cgsUrl     = ab_setting('cgs_url');
 $modalEnabled = ab_setting('modal_enabled', '0') === '1';
 $modalMessage = ab_setting('modal_message');
 $modalMaxViews = (int) ab_setting('modal_max_views', '3');
+
+$loggedInCustomer = null;
+if (!empty($_SESSION['customer_id'])) {
+    $loggedInCustomer = $db->fetchOne("SELECT * FROM ab_customers WHERE id = ?", [(int) $_SESSION['customer_id']]);
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -134,13 +139,17 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
         .step-item.done .step-label { color: rgba(255,255,255,0.72); }
 
         /* Prestataire link */
-        .prestataire-link {
+        .hero-top-links {
             position: absolute; top: 14px; right: 16px;
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+        }
+        .prestataire-link, .account-link {
             color: rgba(255,255,255,0.68); font-size: 0.72rem; text-decoration: none;
             background: rgba(0,0,0,0.16); padding: 5px 13px; border-radius: 20px;
             transition: all 0.22s; white-space: nowrap; backdrop-filter: blur(4px);
         }
-        .prestataire-link:hover { color: #fff; background: rgba(0,0,0,0.32); }
+        .prestataire-link:hover, .account-link:hover { color: #fff; background: rgba(0,0,0,0.32); }
+        .account-link.logged-in { background: rgba(255,255,255,0.22); color: #fff; }
 
         /* ── Container ── */
         .booking-container {
@@ -440,7 +449,14 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
 <body>
 
 <div class="booking-hero">
-    <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
+    <div class="hero-top-links">
+        <?php if ($loggedInCustomer): ?>
+        <a href="<?= ab_url('public/account.php') ?>" class="account-link logged-in"><i class="bi bi-person-check-fill"></i> <?= ab_escape($loggedInCustomer['first_name']) ?></a>
+        <?php else: ?>
+        <a href="<?= ab_url('public/account.php') ?>" class="account-link"><i class="bi bi-box-arrow-in-right"></i> Connexion</a>
+        <?php endif; ?>
+        <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
+    </div>
     <div class="hero-business"><?= ab_escape($businessName) ?></div>
     <div class="hero-sub">Réservation en ligne · Rapide &amp; sécurisé</div>
     <?php $reviewStats = (new Reviews())->getStats(); if ((int)$reviewStats['total'] > 0): ?>
@@ -471,6 +487,17 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
 </div>
 
 <div class="booking-container">
+    <?php if (!$loggedInCustomer): ?>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 p-3" style="background:#fff;border-radius:14px;border:1px solid #eee;">
+        <div style="font-size:0.9rem;">
+            <i class="bi bi-person-heart" style="color:<?= $primaryColor ?>;"></i>
+            Déjà client ? Connectez-vous pour réserver sans ressaisir vos informations.
+        </div>
+        <a href="<?= ab_url('public/account.php') ?>" class="btn btn-sm" style="background:<?= $primaryColor ?>;color:#fff;white-space:nowrap;">
+            <i class="bi bi-box-arrow-in-right"></i> Se connecter
+        </a>
+    </div>
+    <?php endif; ?>
     <?php if (!empty($bookingAnnouncement)): ?>
     <div class="alert alert-info mb-3" style="border-radius:14px; font-size:0.88rem;">
         <i class="bi bi-megaphone-fill"></i> <?= ab_safe_html($bookingAnnouncement) ?>
@@ -584,25 +611,36 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
             </div>
             <form id="booking-form">
                 <div class="row g-3">
+                    <?php if ($loggedInCustomer): ?>
+                    <div class="col-12">
+                        <div class="alert alert-light border py-2 px-3 mb-0" style="font-size:0.85rem;">
+                            <i class="bi bi-person-check-fill" style="color:<?= $primaryColor ?>;"></i>
+                            Connecté en tant que <strong><?= ab_escape($loggedInCustomer['first_name'] . ' ' . $loggedInCustomer['last_name']) ?></strong> — vos informations sont pré-remplies.
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     <div class="col-md-6">
                         <label class="form-label">Prénom *</label>
-                        <input type="text" name="first_name" class="form-control" required id="bf-firstname" placeholder="Jean">
+                        <input type="text" name="first_name" class="form-control" required id="bf-firstname" placeholder="Jean" value="<?= ab_escape($loggedInCustomer['first_name'] ?? '') ?>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Nom *</label>
-                        <input type="text" name="last_name" class="form-control" required id="bf-lastname" placeholder="Dupont">
+                        <input type="text" name="last_name" class="form-control" required id="bf-lastname" placeholder="Dupont" value="<?= ab_escape($loggedInCustomer['last_name'] ?? '') ?>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Email *</label>
-                        <input type="email" name="email" class="form-control" required id="bf-email" placeholder="votre@email.fr">
+                        <input type="email" name="email" class="form-control" required id="bf-email" placeholder="votre@email.fr"
+                               value="<?= ab_escape($loggedInCustomer['email'] ?? '') ?>" <?= $loggedInCustomer ? 'readonly' : '' ?>>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Téléphone <?= ab_setting('require_phone', '1') === '1' ? '*' : '' ?></label>
-                        <input type="tel" name="phone" class="form-control" id="bf-phone" placeholder="06 00 00 00 00" <?= ab_setting('require_phone', '1') === '1' ? 'required' : '' ?>>
+                        <input type="tel" name="phone" class="form-control" id="bf-phone" placeholder="06 00 00 00 00" <?= ab_setting('require_phone', '1') === '1' ? 'required' : '' ?>
+                               value="<?= ab_escape($loggedInCustomer['phone'] ?? '') ?>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Date de naissance *</label>
-                        <input type="text" name="date_of_birth" class="form-control" required id="bf-dob" placeholder="JJ.MM.AAAA" maxlength="10" autocomplete="bday">
+                        <input type="text" name="date_of_birth" class="form-control" required id="bf-dob" placeholder="JJ.MM.AAAA" maxlength="10" autocomplete="bday"
+                               value="<?= ab_escape(ab_format_dob($loggedInCustomer['date_of_birth'] ?? null)) ?>">
                     </div>
                     <div class="col-12" id="dob-warning" style="display:none;">
                         <div class="alert alert-warning py-2 mb-0" style="border-radius:10px;font-size:0.84rem;"><i class="bi bi-exclamation-triangle"></i> Veuillez renseigner votre date de naissance pour continuer.</div>
@@ -1216,6 +1254,7 @@ document.getElementById('bf-dob').addEventListener('input', function() {
     this.value = v.substring(0, 10);
     updateAgeUI();
 });
+updateAgeUI(); // reflect a pre-filled date of birth (logged-in customer) on load
 
 document.getElementById('bf-email').addEventListener('blur', function() {
     const email = this.value.trim();
