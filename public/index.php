@@ -443,6 +443,9 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
     <div class="hero-business"><?= ab_escape($businessName) ?></div>
     <div class="hero-sub">Réservation en ligne · Rapide &amp; sécurisé</div>
+    <?php $reviewStats = (new Reviews())->getStats(); if ((int)$reviewStats['total'] > 0): ?>
+    <div class="hero-sub" style="margin-top:4px;"><i class="bi bi-star-fill" style="color:#ffc107;"></i> <?= $reviewStats['avg_rating'] ?>/5 <span style="opacity:0.75;">(<?= (int)$reviewStats['total'] ?> avis)</span></div>
+    <?php endif; ?>
     <div class="step-stepper">
         <div class="step-item active" data-step="1">
             <div class="step-circle">1</div>
@@ -782,6 +785,27 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
     </div>
 </div>
 
+<?php $publicReviews = (new Reviews())->getApproved(6); if (!empty($publicReviews)): ?>
+<div class="booking-container" style="margin-top:0;">
+    <h5 class="text-center mb-3" style="color:#888;font-weight:700;font-size:0.95rem;">Ce que disent nos clients</h5>
+    <div class="row g-3 mb-3">
+        <?php foreach ($publicReviews as $rv): ?>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm" style="border-radius:14px;">
+                <div class="card-body">
+                    <div style="color:#ffc107;font-size:0.95rem;"><?= str_repeat('★', (int)$rv['rating']) . str_repeat('☆', 5 - (int)$rv['rating']) ?></div>
+                    <?php if (!empty($rv['comment'])): ?>
+                    <p class="mt-2 mb-2" style="font-size:0.85rem;color:#555;"><?= nl2br(ab_escape($rv['comment'])) ?></p>
+                    <?php endif; ?>
+                    <div class="small text-muted">— <?= ab_escape($rv['customer_first_name']) ?></div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <footer style="text-align:center;padding:20px;color:#ccc;font-size:0.78rem;">
     <?= ab_escape($businessName) ?> &middot; <?= ab_escape(ab_setting('business_phone')) ?>
 </footer>
@@ -805,7 +829,102 @@ $modalMaxViews = (int) ab_setting('modal_max_views', '3');
 </div>
 <?php endif; ?>
 
+<div class="modal fade" id="waitlistModal" tabindex="-1" aria-labelledby="waitlistModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:18px;overflow:hidden;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+            <form id="waitlist-form">
+                <div class="modal-header" style="background:linear-gradient(135deg,var(--p),var(--s));color:#fff;border:none;">
+                    <h5 class="modal-title" id="waitlistModalLabel" style="font-weight:700;"><i class="bi bi-bell"></i> Liste d'attente</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body" style="padding:24px;">
+                    <p class="text-muted small">Nous vous préviendrons par email dès qu'un créneau se libère sur la période choisie.</p>
+                    <div id="waitlist-alert" class="alert d-none" role="alert"></div>
+                    <div class="mb-2">
+                        <label class="form-label">Prénom</label>
+                        <input type="text" class="form-control" name="first_name" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Nom</label>
+                        <input type="text" class="form-control" name="last_name" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Téléphone</label>
+                        <input type="tel" class="form-control" name="phone">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Du</label>
+                            <input type="date" class="form-control" name="desired_date_start" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Au</label>
+                            <input type="date" class="form-control" name="desired_date_end" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border:none;padding:16px 24px;">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-ab"><i class="bi bi-bell"></i> M'inscrire</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function openWaitlistModal() {
+    const modalEl = document.getElementById('waitlistModal');
+    const alertEl = document.getElementById('waitlist-alert');
+    alertEl.classList.add('d-none');
+    document.getElementById('waitlist-form').reset();
+    const startInput = document.querySelector('#waitlist-form [name="desired_date_start"]');
+    const endInput = document.querySelector('#waitlist-form [name="desired_date_end"]');
+    if (booking.date) {
+        startInput.value = booking.date;
+        const endDate = new Date(booking.date);
+        endDate.setDate(endDate.getDate() + 14);
+        endInput.value = endDate.toISOString().slice(0, 10);
+    }
+    new bootstrap.Modal(modalEl).show();
+}
+
+document.getElementById('waitlist-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const alertEl = document.getElementById('waitlist-alert');
+    const formData = new FormData(this);
+    const payload = Object.fromEntries(formData.entries());
+    payload.service_id = booking.serviceId;
+    payload.provider_id = booking.providerId;
+
+    fetch(API_URL + '?route=waitlist-join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alertEl.className = 'alert alert-danger';
+                alertEl.textContent = data.error;
+                alertEl.classList.remove('d-none');
+                return;
+            }
+            bootstrap.Modal.getInstance(document.getElementById('waitlistModal')).hide();
+            alert('Vous avez bien été inscrit(e) à la liste d\'attente. Nous vous contacterons par email dès qu\'un créneau se libère.');
+        })
+        .catch(() => {
+            alertEl.className = 'alert alert-danger';
+            alertEl.textContent = 'Une erreur est survenue, veuillez réessayer.';
+            alertEl.classList.remove('d-none');
+        });
+});
+</script>
 <?php if ($modalEnabled && !empty($modalMessage)): ?>
 <script>
 (function() {
@@ -1032,7 +1151,9 @@ function loadTimeSlots() {
                 if (data.debug) {
                     debugHtml = '<pre class="text-start small mt-2 p-2 bg-light" style="font-size:11px;">' + JSON.stringify(data.debug, null, 2) + '</pre>';
                 }
-                document.getElementById('time-slots').innerHTML = '<p class="text-center" style="color:#bbb;font-size:0.86rem;padding:12px 0;">Aucun créneau disponible ce jour</p>' + debugHtml;
+                document.getElementById('time-slots').innerHTML = '<p class="text-center" style="color:#bbb;font-size:0.86rem;padding:12px 0;">Aucun créneau disponible ce jour</p>'
+                    + '<p class="text-center"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openWaitlistModal()"><i class="bi bi-bell"></i> Me prévenir si un créneau se libère</button></p>'
+                    + debugHtml;
                 return;
             }
             let html = '<div class="time-slots-grid">';

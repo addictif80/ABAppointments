@@ -187,6 +187,41 @@ CREATE TABLE IF NOT EXISTS `ab_deposits` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
+-- Table: waitlist
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ab_waitlist` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `service_id` INT UNSIGNED NOT NULL,
+  `provider_id` INT UNSIGNED NULL,
+  `first_name` VARCHAR(100) NOT NULL,
+  `last_name` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `phone` VARCHAR(30) NULL,
+  `desired_date_start` DATE NOT NULL,
+  `desired_date_end` DATE NOT NULL,
+  `status` ENUM('waiting','notified','booked','cancelled') NOT NULL DEFAULT 'waiting',
+  `notified_at` DATETIME NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`service_id`) REFERENCES `ab_services`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: reviews
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ab_reviews` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `appointment_id` INT UNSIGNED NOT NULL,
+  `rating` TINYINT UNSIGNED NOT NULL,
+  `comment` TEXT NULL,
+  `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `submitted_at` DATETIME NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `appointment_id` (`appointment_id`),
+  FOREIGN KEY (`appointment_id`) REFERENCES `ab_appointments`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
 -- Table: email_templates
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ab_email_templates` (
@@ -370,7 +405,27 @@ INSERT INTO `ab_email_templates` (`slug`, `name`, `subject`, `body`, `variables`
 </table>
 <p>Pour consulter ou annuler votre rendez-vous :<br><a href="{manage_url}">Gérer mon rendez-vous</a></p>
 <p>Cordialement,<br>{business_name}</p>',
-'["customer_name","service_name","old_date","old_time","appointment_date","appointment_time","manage_url","business_name"]');
+'["customer_name","service_name","old_date","old_time","appointment_date","appointment_time","manage_url","business_name"]'),
+
+('waitlist_slot_available', 'Créneau disponible (liste d''attente)', 'Un créneau s''est libéré - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Bonne nouvelle ! Un créneau s''est libéré pour la prestation que vous attendiez :</p>
+<table style="border-collapse:collapse;width:100%;max-width:500px;">
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestataire</td><td style="padding:8px;border:1px solid #ddd;">{provider_name}</td></tr>
+</table>
+<p>Réservez vite, ce créneau peut être repris à tout moment :<br><a href="{booking_url}">Réserver ce créneau</a></p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","service_name","appointment_date","provider_name","booking_url","business_name"]'),
+
+('review_request', 'Demande d''avis', 'Votre avis nous intéresse - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Nous espérons que votre rendez-vous du {appointment_date} pour "{service_name}" s''est bien passé !</p>
+<p>Votre avis compte beaucoup pour nous, auriez-vous une minute pour le partager ?</p>
+<p><a href="{review_url}" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Laisser un avis</a></p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","service_name","appointment_date","review_url","business_name"]');
 
 -- Admin par défaut (mot de passe: admin123 - à changer !)
 INSERT INTO `ab_users` (`first_name`, `last_name`, `email`, `password`, `role`) VALUES

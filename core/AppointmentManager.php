@@ -431,6 +431,22 @@ class AppointmentManager {
             } catch (Exception $e) {
                 error_log('ABAppointments CalDAV delete error: ' . $e->getMessage());
             }
+            // Notify matching waitlist entries that a slot just freed up
+            try {
+                (new Waitlist())->notifyForFreedSlot(
+                    $appointment['service_id'],
+                    $appointment['provider_id'],
+                    date('Y-m-d', strtotime($appointment['start_datetime']))
+                );
+            } catch (Exception $e) {
+                error_log('ABAppointments waitlist notify error: ' . $e->getMessage());
+            }
+        } elseif ($status === 'completed') {
+            try {
+                (new Reviews())->requestForAppointment($appointment);
+            } catch (Exception $e) {
+                error_log('ABAppointments review request error: ' . $e->getMessage());
+            }
         }
 
         return true;
@@ -477,6 +493,17 @@ class AppointmentManager {
             }
         } catch (Exception $e) {
             error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
+        }
+
+        // The old slot just freed up - notify matching waitlist entries
+        try {
+            (new Waitlist())->notifyForFreedSlot(
+                $appointment['service_id'],
+                $appointment['provider_id'],
+                date('Y-m-d', strtotime($appointment['start_datetime']))
+            );
+        } catch (Exception $e) {
+            error_log('ABAppointments waitlist notify error: ' . $e->getMessage());
         }
 
         return ['success' => true];
