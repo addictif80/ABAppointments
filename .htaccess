@@ -13,6 +13,9 @@ RewriteRule ^config/ - [F,L]
 # Protect core directory
 RewriteRule ^core/ - [F,L]
 
+# Protect ticket attachments storage (served only via public/ticket-attachment.php)
+RewriteRule ^storage/ - [F,L]
+
 # Protect install directory (uncomment after install)
 # RewriteRule ^install/ - [F,L]
 

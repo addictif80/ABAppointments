@@ -1396,5 +1396,6 @@ function confirmBooking() {
     });
 }
 </script>
+<?php require __DIR__ . '/_ticket-widget.php'; ?>
 </body>
 </html>

@@ -96,6 +96,9 @@ $showLogin = ($customer === null);
         .badge-confirmed { background: #198754; color: #fff; }
         .badge-cancelled { background: #dc3545; color: #fff; }
         .badge-completed { background: #0d6efd; color: #fff; }
+        .badge-open { background: #ffc107; color: #000; }
+        .badge-resolved { background: #28a745; color: #fff; }
+        .badge-closed { background: #6c757d; color: #fff; }
         .impersonation-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         /* Prestataire link */
         .prestataire-link { position: absolute; top: 12px; right: 15px; color: rgba(255,255,255,0.7); font-size: 0.75rem; text-decoration: none; background: rgba(0,0,0,0.18); padding: 5px 12px; border-radius: 20px; transition: all 0.2s; white-space: nowrap; }
@@ -315,6 +318,42 @@ $memberSince = !empty($customer['created_at']) ? ab_format_date($customer['creat
             <?php endif; ?>
         </div>
 
+        <!-- Support tickets -->
+        <?php
+        $customerTickets = (new Tickets())->listForCustomer((int) $customer['id']);
+        $ticketStatusLabels = ['open' => 'Ouvert', 'resolved' => 'Résolu', 'closed' => 'Clôturé'];
+        ?>
+        <div class="card mt-4">
+            <div class="card-header bg-white d-flex align-items-center justify-content-between">
+                <h5 class="mb-0"><i class="bi bi-life-preserver me-2"></i>Mes tickets de support</h5>
+                <span class="badge bg-secondary"><?= count($customerTickets) ?></span>
+            </div>
+            <?php if (empty($customerTickets)): ?>
+            <div class="card-body text-center text-muted py-4">
+                <p class="mb-0">Aucun ticket. Utilisez la bulle d'aide en bas à droite pour nous contacter.</p>
+            </div>
+            <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Sujet</th><th>Motif</th><th>Statut</th><th>Mis à jour</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($customerTickets as $t): ?>
+                    <tr>
+                        <td><?= ab_escape($t['subject']) ?></td>
+                        <td><?= $t['category'] === 'commercial' ? 'Commercial' : 'Technique' ?></td>
+                        <td><span class="badge badge-<?= ab_escape($t['status']) ?>"><?= ab_escape($ticketStatusLabels[$t['status']] ?? $t['status']) ?></span></td>
+                        <td><?= ab_format_date($t['updated_at']) ?></td>
+                        <td><a href="<?= ab_url('public/ticket.php?hash=' . $t['hash']) ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+        </div>
+
 <?php endif; // end showLogin / account ?>
 
     </div><!-- /.account-container -->
@@ -336,5 +375,6 @@ $memberSince = !empty($customer['created_at']) ? ab_format_date($customer['creat
         });
     }
     </script>
+<?php require __DIR__ . '/_ticket-widget.php'; ?>
 </body>
 </html>

@@ -17,7 +17,7 @@ if (!in_array($page, $publicPages)) {
 $allowedPages = [
     'login', 'dashboard', 'appointments', 'services', 'categories',
     'booking-options', 'providers', 'customers', 'settings', 'working-hours', 'holidays',
-    'deposits', 'email-templates', 'google-callback', 'profile', 'waitlist', 'reviews'
+    'deposits', 'email-templates', 'google-callback', 'profile', 'waitlist', 'reviews', 'tickets'
 ];
 
 if (!in_array($page, $allowedPages)) {

@@ -40,6 +40,7 @@ require_once __DIR__ . '/GoogleCalendar.php';
 require_once __DIR__ . '/CalDAV.php';
 require_once __DIR__ . '/Waitlist.php';
 require_once __DIR__ . '/Reviews.php';
+require_once __DIR__ . '/Tickets.php';
 
 /**
  * Helper functions
