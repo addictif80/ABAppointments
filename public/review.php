@@ -21,6 +21,7 @@ if (!$appointment) {
 $message = '';
 $error = '';
 $alreadySubmitted = !empty($appointment['review_id']);
+$showGooglePrompt = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadySubmitted && $appointment['status'] === 'completed') {
     $rating = (int)($_POST['rating'] ?? 0);
@@ -30,6 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadySubmitted && $appointment[
     } elseif ($reviews->submit((int)$appointment['id'], $rating, $comment)) {
         $message = 'Merci beaucoup pour votre avis !';
         $alreadySubmitted = true;
+
+        $googleReviewUrl = ab_setting('google_review_url');
+        $googleThreshold = (int) ab_setting('google_review_threshold', '4');
+        if (ab_setting('google_review_prompt_enabled', '0') === '1' && $googleReviewUrl && $rating >= $googleThreshold) {
+            $showGooglePrompt = true;
+        }
     } else {
         $error = 'Un avis a déjà été soumis pour ce rendez-vous.';
     }
@@ -72,6 +79,16 @@ $canReview = $appointment['status'] === 'completed' && !$alreadySubmitted;
             <?php endif; ?>
             <?php if ($error): ?>
             <div class="alert alert-danger"><?= ab_escape($error) ?></div>
+            <?php endif; ?>
+            <?php if ($showGooglePrompt): ?>
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <p class="mb-3">Ravi que votre expérience vous ait plu ! Auriez-vous une minute pour le partager aussi sur Google ?</p>
+                    <a href="<?= ab_escape(ab_setting('google_review_url')) ?>" target="_blank" rel="noopener" class="btn btn-primary">
+                        <i class="bi bi-google"></i> Laisser un avis Google
+                    </a>
+                </div>
+            </div>
             <?php endif; ?>
 
             <div class="card border-0 shadow-sm">
