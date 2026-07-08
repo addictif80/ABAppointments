@@ -3,6 +3,7 @@ $currentPage = $pageContent;
 $userName = $_SESSION['user_name'] ?? 'Admin';
 $isAdmin = Auth::isAdmin();
 $primaryColor = ab_setting('primary_color', '#e91e63');
+$openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -45,6 +46,9 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
         .badge-booked { background: #28a745; }
         .badge-approved { background: #28a745; }
         .badge-rejected { background: #dc3545; }
+        .badge-open { background: #ffc107; color: #000; }
+        .badge-resolved { background: #28a745; }
+        .badge-closed { background: #6c757d; }
         .nav-section { padding: 15px 20px 5px; color: rgba(255,255,255,0.4); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
@@ -77,6 +81,10 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
             </a>
             <a href="<?= ab_url('admin/index.php?page=reviews') ?>" class="nav-link <?= $currentPage === 'reviews' ? 'active' : '' ?>">
                 <i class="bi bi-star"></i> Avis clients
+            </a>
+            <a href="<?= ab_url('admin/index.php?page=tickets') ?>" class="nav-link <?= $currentPage === 'tickets' ? 'active' : '' ?>">
+                <i class="bi bi-life-preserver"></i> Support
+                <?php if ($openTicketsCount > 0): ?><span class="badge bg-danger ms-auto"><?= $openTicketsCount ?></span><?php endif; ?>
             </a>
 
             <div class="nav-section">Configuration</div>
