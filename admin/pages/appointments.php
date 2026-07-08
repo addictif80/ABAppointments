@@ -68,7 +68,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'notes' => trim($_POST['notes'] ?? ''),
         ]);
         if ($result) {
-            ab_flash('success', 'Rendez-vous créé avec succès.');
+            try {
+                $manager->sendNotifications($result['id'], $result['status'], $result['deposit']);
+            } catch (Exception $e) {
+                error_log('ABAppointments email error: ' . $e->getMessage());
+            }
+
+            try {
+                $gcal = new GoogleCalendar();
+                if ($gcal->isConfigured()) {
+                    $gcal->syncAppointment($result['id']);
+                }
+            } catch (Exception $e) {
+                error_log('ABAppointments gcal error: ' . $e->getMessage());
+            }
+
+            try {
+                $caldav = new CalDAV();
+                $caldav->syncAppointment($result['id']);
+            } catch (Exception $e) {
+                error_log('ABAppointments caldav error: ' . $e->getMessage());
+            }
+
+            ab_flash('success', 'Rendez-vous créé avec succès. Le client a été notifié par email.');
         } else {
             ab_flash('error', 'Erreur lors de la création.');
         }
