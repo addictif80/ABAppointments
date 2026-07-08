@@ -62,6 +62,20 @@ if ($action === 'create') {
     ]);
 }
 
+if ($action === 'recover') {
+    $email = trim($_POST['email'] ?? '');
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        ab_json(['error' => 'Merci de saisir une adresse email valide.'], 400);
+    }
+    // Always report success, whether or not the email matches a customer,
+    // so this endpoint can't be used to enumerate registered emails.
+    $tickets->sendRecoveryLinks($email);
+    ab_json([
+        'success' => true,
+        'message' => 'Si un ticket existe pour cet email, vous allez recevoir un message avec vos liens.',
+    ]);
+}
+
 if ($action === 'reply') {
     $hash = trim($_POST['ticket_hash'] ?? '');
     $body = trim($_POST['body'] ?? '');
