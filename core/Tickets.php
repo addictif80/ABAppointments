@@ -36,10 +36,16 @@ class Tickets {
 
     /**
      * Find an existing customer by email, or create a minimal record.
+     * An optional date of birth is stored so the customer can later log
+     * into their personal account (public/account.php requires it), and
+     * is backfilled onto an existing customer record that doesn't have one.
      */
-    public function resolveCustomer(string $firstName, string $lastName, string $email, string $phone = ''): int {
-        $customer = $this->db->fetchOne("SELECT id FROM ab_customers WHERE email = ?", [$email]);
+    public function resolveCustomer(string $firstName, string $lastName, string $email, string $phone = '', ?string $dob = null): int {
+        $customer = $this->db->fetchOne("SELECT id, date_of_birth FROM ab_customers WHERE email = ?", [$email]);
         if ($customer) {
+            if ($dob && empty($customer['date_of_birth'])) {
+                $this->db->update('ab_customers', ['date_of_birth' => $dob], 'id = ?', [$customer['id']]);
+            }
             return (int) $customer['id'];
         }
         return $this->db->insert('ab_customers', [
@@ -47,6 +53,38 @@ class Tickets {
             'last_name' => $lastName,
             'email' => $email,
             'phone' => $phone,
+            'date_of_birth' => $dob,
+        ]);
+    }
+
+    /**
+     * Email every ticket link for a given customer email, for the "lost my
+     * link" recovery flow. Silently does nothing if the email is unknown or
+     * has no tickets, so the caller can always show a generic success message
+     * (avoids leaking which emails have an account).
+     */
+    public function sendRecoveryLinks(string $email): void {
+        $customer = $this->db->fetchOne("SELECT * FROM ab_customers WHERE email = ?", [$email]);
+        if (!$customer) return;
+
+        $ticketsList = $this->listForCustomer((int) $customer['id']);
+        if (!$ticketsList) return;
+
+        $statusLabels = ['open' => 'Ouvert', 'resolved' => 'Résolu', 'closed' => 'Clôturé'];
+        $rows = '';
+        foreach ($ticketsList as $t) {
+            $rows .= '<tr>'
+                . '<td style="padding:6px 10px;border:1px solid #ddd;">' . htmlspecialchars($t['subject'], ENT_QUOTES, 'UTF-8') . '</td>'
+                . '<td style="padding:6px 10px;border:1px solid #ddd;">' . ($statusLabels[$t['status']] ?? $t['status']) . '</td>'
+                . '<td style="padding:6px 10px;border:1px solid #ddd;"><a href="' . ab_url('public/ticket.php?hash=' . $t['hash']) . '">Voir</a></td>'
+                . '</tr>';
+        }
+
+        $mailer = new Mailer();
+        $mailer->sendTemplate('ticket_recovery', $email, [
+            'customer_name' => $customer['first_name'] . ' ' . $customer['last_name'],
+            'tickets_list' => '<table style="border-collapse:collapse;width:100%;max-width:500px;">' . $rows . '</table>',
+            'business_name' => ab_setting('business_name'),
         ]);
     }
 

@@ -63,7 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ab_redirect(ab_url('admin/index.php?page=tickets&action=create'));
         }
 
-        $customerId = $tickets->resolveCustomer($firstName, $lastName, $email, trim($_POST['phone'] ?? ''));
+        $dob = ab_parse_dob(trim($_POST['date_of_birth'] ?? ''));
+        $customerId = $tickets->resolveCustomer($firstName, $lastName, $email, trim($_POST['phone'] ?? ''), $dob);
         $ticket = $tickets->create([
             'customer_id' => $customerId,
             'subject' => $subject,
@@ -211,6 +212,11 @@ elseif ($action === 'create'): ?>
                 <div class="col-md-6"><label class="form-label">Nom client *</label><input type="text" name="last_name" class="form-control" required></div>
                 <div class="col-md-6"><label class="form-label">Email client *</label><input type="email" name="email" class="form-control" required></div>
                 <div class="col-md-6"><label class="form-label">Téléphone</label><input type="tel" name="phone" class="form-control"></div>
+                <div class="col-md-6">
+                    <label class="form-label">Date de naissance</label>
+                    <input type="text" name="date_of_birth" class="form-control" placeholder="JJ.MM.AAAA" maxlength="10">
+                    <small class="text-muted">Requise pour que le client accède à son espace personnel.</small>
+                </div>
                 <div class="col-md-6">
                     <label class="form-label">Motif *</label>
                     <select name="category" class="form-select" required>

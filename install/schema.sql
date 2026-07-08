@@ -504,7 +504,14 @@ INSERT INTO `ab_email_templates` (`slug`, `name`, `subject`, `body`, `variables`
 <p><strong>{customer_name}</strong> a répondu au ticket "{subject}" :</p>
 <blockquote style="margin:12px 0;padding:10px 15px;background:#f8f9fa;border-left:3px solid #e91e63;color:#555;">{message_excerpt}</blockquote>
 <p><a href="{admin_url}" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Voir et répondre</a></p>',
-'["customer_name","subject","message_excerpt","admin_url"]');
+'["customer_name","subject","message_excerpt","admin_url"]'),
+
+('ticket_recovery', 'Récupération des liens de tickets', 'Vos tickets de support - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Voici vos tickets de support en cours :</p>
+{tickets_list}
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","tickets_list","business_name"]');
 
 -- Admin par défaut (mot de passe: admin123 - à changer !)
 INSERT INTO `ab_users` (`first_name`, `last_name`, `email`, `password`, `role`) VALUES

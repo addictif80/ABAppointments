@@ -55,6 +55,11 @@ $_ticketWidgetPrimaryColor = ab_setting('primary_color', '#e91e63');
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-control form-control-sm" required>
                 </div>
+                <div class="mb-2">
+                    <label class="form-label">Date de naissance <span class="text-muted">(optionnel)</span></label>
+                    <input type="text" name="date_of_birth" id="ab-help-dob" class="form-control form-control-sm" placeholder="JJ.MM.AAAA" maxlength="10">
+                    <small class="text-muted">Permet de retrouver vos tickets dans votre espace client.</small>
+                </div>
                 <?php endif; ?>
                 <div class="mb-2">
                     <label class="form-label">Motif</label>
@@ -88,6 +93,9 @@ $_ticketWidgetPrimaryColor = ab_setting('primary_color', '#e91e63');
                 </div>
                 <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-send"></i> Envoyer</button>
             </form>
+            <p class="text-center mt-2 mb-0">
+                <a href="<?= ab_url('public/ticket-recovery.php') ?>" target="_blank" class="small text-muted">J'ai déjà un ticket, j'ai perdu mon lien</a>
+            </p>
         </div>
     </div>
 </div>
@@ -106,6 +114,16 @@ $_ticketWidgetPrimaryColor = ab_setting('primary_color', '#e91e63');
 
     toggle.addEventListener('click', () => panel.classList.toggle('open'));
     closeBtn.addEventListener('click', () => panel.classList.remove('open'));
+
+    const dobInput = document.getElementById('ab-help-dob');
+    if (dobInput) {
+        dobInput.addEventListener('input', function() {
+            let v = this.value.replace(/\D/g, '');
+            if (v.length > 2) v = v.substring(0, 2) + '.' + v.substring(2);
+            if (v.length > 5) v = v.substring(0, 5) + '.' + v.substring(5);
+            this.value = v.substring(0, 10);
+        });
+    }
 
     function syncProviderField() {
         providerWrap.style.display = categorySelect.value === 'commercial' ? 'block' : 'none';
