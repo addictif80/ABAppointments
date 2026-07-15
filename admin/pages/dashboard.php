@@ -35,6 +35,33 @@ $revenueSql = "SELECT COALESCE(SUM(s.price), 0) as total FROM ab_appointments a 
                WHERE MONTH(a.start_datetime) = MONTH(CURDATE()) AND YEAR(a.start_datetime) = YEAR(CURDATE()) AND a.status IN ('confirmed','completed')";
 if ($providerId) $revenueSql .= " AND a.provider_id = $providerId";
 $monthRevenue = $db->fetchOne($revenueSql)['total'];
+
+// Appointments behind the monthly revenue figure, grouped so each contributing client
+// appears once with the number of appointments and total they represent this month.
+$monthRevenueDetailSql = "SELECT a.id, a.start_datetime, a.status, c.first_name as cf, c.last_name as cl, c.email as ce, c.phone as cp, s.name as sn, s.color as sc, s.price as sp
+             FROM ab_appointments a
+             JOIN ab_customers c ON a.customer_id = c.id
+             JOIN ab_services s ON a.service_id = s.id
+             WHERE MONTH(a.start_datetime) = MONTH(CURDATE()) AND YEAR(a.start_datetime) = YEAR(CURDATE()) AND a.status IN ('confirmed','completed')";
+if ($providerId) $monthRevenueDetailSql .= " AND a.provider_id = $providerId";
+$monthRevenueDetailSql .= " ORDER BY c.last_name, c.first_name, a.start_datetime";
+$monthRevenueAppts = $db->fetchAll($monthRevenueDetailSql);
+
+$monthRevenueByCustomer = [];
+foreach ($monthRevenueAppts as $ra) {
+    $custId = $ra['ce'] ?: ($ra['cf'] . ' ' . $ra['cl']);
+    if (!isset($monthRevenueByCustomer[$custId])) {
+        $monthRevenueByCustomer[$custId] = [
+            'name' => trim($ra['cf'] . ' ' . $ra['cl']),
+            'email' => $ra['ce'],
+            'phone' => $ra['cp'],
+            'total' => 0,
+            'appointments' => [],
+        ];
+    }
+    $monthRevenueByCustomer[$custId]['total'] += $ra['sp'];
+    $monthRevenueByCustomer[$custId]['appointments'][] = $ra;
+}
 ?>
 
 <?php $adminAnnouncement = ab_setting('admin_announcement'); ?>
@@ -60,10 +87,10 @@ $monthRevenue = $db->fetchOne($revenueSql)['total'];
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card stat-card p-3">
+        <div class="card stat-card p-3" role="button" data-bs-toggle="modal" data-bs-target="#monthRevenueModal" style="cursor:pointer;">
             <div class="text-muted small">Ce mois</div>
             <div class="h3 mb-0"><?= $monthCount ?></div>
-            <div class="text-muted small"><?= ab_format_price($monthRevenue) ?> CA</div>
+            <div class="text-muted small"><?= ab_format_price($monthRevenue) ?> CA <i class="bi bi-chevron-right small"></i></div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
@@ -125,6 +152,48 @@ $monthRevenue = $db->fetchOne($revenueSql)['total'];
                 <?php endforeach; ?>
                 <?php if (empty($upcoming)): ?>
                 <div class="list-group-item text-muted text-center py-3">Aucun rendez-vous à venir</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="monthRevenueModal" tabindex="-1" aria-labelledby="monthRevenueModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="monthRevenueModalLabel"><i class="bi bi-cash-stack"></i> Clients du mois — <?= ab_format_price($monthRevenue) ?> CA</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <?php if (empty($monthRevenueByCustomer)): ?>
+                <p class="text-muted text-center py-3">Aucun rendez-vous confirmé ou terminé ce mois-ci.</p>
+                <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>Client</th><th>Rendez-vous</th><th class="text-end">Total</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($monthRevenueByCustomer as $cust): ?>
+                        <tr>
+                            <td>
+                                <strong><?= ab_escape($cust['name']) ?></strong><br>
+                                <small class="text-muted"><?= ab_escape($cust['email']) ?><?= $cust['phone'] ? ' · ' . ab_escape($cust['phone']) : '' ?></small>
+                            </td>
+                            <td>
+                                <?php foreach ($cust['appointments'] as $ap): ?>
+                                <div class="small mb-1">
+                                    <a href="<?= ab_url('admin/index.php?page=appointments&action=view&id=' . $ap['id']) ?>"><?= ab_format_date($ap['start_datetime']) ?></a>
+                                    - <span style="color:<?= ab_escape($ap['sc']) ?>"><?= ab_escape($ap['sn']) ?></span>
+                                    <span class="badge badge-<?= $ap['status'] ?> ms-1"><?= $ap['status'] ?></span>
+                                </div>
+                                <?php endforeach; ?>
+                            </td>
+                            <td class="text-end"><strong><?= ab_format_price($cust['total']) ?></strong></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
                 <?php endif; ?>
             </div>
         </div>

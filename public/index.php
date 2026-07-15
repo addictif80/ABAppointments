@@ -459,7 +459,7 @@ if (!empty($_SESSION['customer_id'])) {
     </div>
     <div class="hero-business"><?= ab_escape($businessName) ?></div>
     <div class="hero-sub">Réservation en ligne · Rapide &amp; sécurisé</div>
-    <?php $reviewStats = (new Reviews())->getStats(); if ((int)$reviewStats['total'] > 0): ?>
+    <?php $reviewStats = ab_feature_enabled('reviews') ? (new Reviews())->getStats() : ['total' => 0, 'avg_rating' => 0]; if ((int)$reviewStats['total'] > 0): ?>
     <div class="hero-sub" style="margin-top:4px;"><i class="bi bi-star-fill" style="color:#ffc107;"></i> <?= $reviewStats['avg_rating'] ?>/5 <span style="opacity:0.75;">(<?= (int)$reviewStats['total'] ?> avis)</span></div>
     <?php endif; ?>
     <div class="step-stepper">
@@ -823,7 +823,7 @@ if (!empty($_SESSION['customer_id'])) {
     </div>
 </div>
 
-<?php $publicReviews = (new Reviews())->getApproved(6); if (!empty($publicReviews)): ?>
+<?php $publicReviews = ab_feature_enabled('reviews') ? (new Reviews())->getApproved(6) : []; if (!empty($publicReviews)): ?>
 <div class="booking-container" style="margin-top:0;">
     <h5 class="text-center mb-3" style="color:#888;font-weight:700;font-size:0.95rem;">Ce que disent nos clients</h5>
     <div class="row g-3 mb-3">
@@ -867,6 +867,7 @@ if (!empty($_SESSION['customer_id'])) {
 </div>
 <?php endif; ?>
 
+<?php if (ab_feature_enabled('waitlist')): ?>
 <div class="modal fade" id="waitlistModal" tabindex="-1" aria-labelledby="waitlistModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:18px;overflow:hidden;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
@@ -913,6 +914,7 @@ if (!empty($_SESSION['customer_id'])) {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -983,6 +985,7 @@ document.getElementById('waitlist-form').addEventListener('submit', function(e) 
 <?php endif; ?>
 <script>
 const API_URL = '<?= ab_url('api/index.php') ?>';
+const FEATURE_WAITLIST_ENABLED = <?= ab_feature_enabled('waitlist') ? 'true' : 'false' ?>;
 let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '', guardian: null, selectedOptions: [] };
 let currentMonth = new Date();
 let availableDaysCache = {};
@@ -1190,7 +1193,7 @@ function loadTimeSlots() {
                     debugHtml = '<pre class="text-start small mt-2 p-2 bg-light" style="font-size:11px;">' + JSON.stringify(data.debug, null, 2) + '</pre>';
                 }
                 document.getElementById('time-slots').innerHTML = '<p class="text-center" style="color:#bbb;font-size:0.86rem;padding:12px 0;">Aucun créneau disponible ce jour</p>'
-                    + '<p class="text-center"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openWaitlistModal()"><i class="bi bi-bell"></i> Me prévenir si un créneau se libère</button></p>'
+                    + (FEATURE_WAITLIST_ENABLED ? '<p class="text-center"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openWaitlistModal()"><i class="bi bi-bell"></i> Me prévenir si un créneau se libère</button></p>' : '')
                     + debugHtml;
                 return;
             }

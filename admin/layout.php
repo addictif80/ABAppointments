@@ -23,7 +23,7 @@ $openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
     <style>
         :root { --ab-primary: <?= $primaryColor ?>; --ab-primary-dark: color-mix(in srgb, <?= $primaryColor ?> 80%, black); }
         body { background: #f4f6f9; }
-        .sidebar { width: 260px; min-height: 100vh; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
+        .sidebar { width: 260px; height: 100vh; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; padding-bottom: env(safe-area-inset-bottom); }
         .sidebar .brand { padding: 20px; color: #fff; font-size: 1.2rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .sidebar .nav-link { color: rgba(255,255,255,0.7); padding: 12px 20px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; border-left: 3px solid transparent; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.08); border-left-color: var(--ab-primary); }
@@ -73,19 +73,27 @@ $openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
             <a href="<?= ab_url('admin/index.php?page=customers') ?>" class="nav-link <?= $currentPage === 'customers' ? 'active' : '' ?>">
                 <i class="bi bi-people"></i> Clients
             </a>
+            <?php if (ab_feature_enabled('deposits')): ?>
             <a href="<?= ab_url('admin/index.php?page=deposits') ?>" class="nav-link <?= $currentPage === 'deposits' ? 'active' : '' ?>">
                 <i class="bi bi-cash-coin"></i> Acomptes
             </a>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('waitlist')): ?>
             <a href="<?= ab_url('admin/index.php?page=waitlist') ?>" class="nav-link <?= $currentPage === 'waitlist' ? 'active' : '' ?>">
                 <i class="bi bi-bell"></i> Liste d'attente
             </a>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('reviews')): ?>
             <a href="<?= ab_url('admin/index.php?page=reviews') ?>" class="nav-link <?= $currentPage === 'reviews' ? 'active' : '' ?>">
                 <i class="bi bi-star"></i> Avis clients
             </a>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('tickets')): ?>
             <a href="<?= ab_url('admin/index.php?page=tickets') ?>" class="nav-link <?= $currentPage === 'tickets' ? 'active' : '' ?>">
                 <i class="bi bi-life-preserver"></i> Support
                 <?php if ($openTicketsCount > 0): ?><span class="badge bg-danger ms-auto"><?= $openTicketsCount ?></span><?php endif; ?>
             </a>
+            <?php endif; ?>
 
             <div class="nav-section">Configuration</div>
             <a href="<?= ab_url('admin/index.php?page=services') ?>" class="nav-link <?= $currentPage === 'services' ? 'active' : '' ?>">

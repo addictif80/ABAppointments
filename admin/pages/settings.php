@@ -57,6 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => ['google_review_url', 'google_review_threshold'],
             'checkbox' => ['google_review_prompt_enabled'],
         ],
+        'features' => [
+            'text' => [],
+            'checkbox' => ['feature_waitlist_enabled', 'feature_reviews_enabled', 'feature_tickets_enabled', 'feature_deposits_enabled', 'feature_google_calendar_enabled'],
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -92,6 +96,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'age_check' ? 'active' : '' ?>" href="?page=settings&tab=age_check">Âge minimum</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'cgv_cgs' ? 'active' : '' ?>" href="?page=settings&tab=cgv_cgs">CGV / CGS</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'reviews' ? 'active' : '' ?>" href="?page=settings&tab=reviews">Avis clients</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'features' ? 'active' : '' ?>" href="?page=settings&tab=features">Fonctionnalités</a></li>
 </ul>
 
 <div class="card">
@@ -350,6 +355,42 @@ $tab = $_GET['tab'] ?? 'general';
         <label class="form-label">Code à intégrer sur votre site (iframe)</label>
         <textarea class="form-control" rows="3" readonly onclick="this.select()"><iframe src="<?= ab_escape(ab_url('public/reviews-widget.php')) ?>" style="width:100%;max-width:900px;border:0;height:420px;" loading="lazy"></iframe></textarea>
         <small class="text-muted">Copiez ce code dans une page HTML pour afficher vos avis (note moyenne + derniers avis approuvés) sur votre site.</small>
+    </div>
+</div>
+            <?php elseif ($tab === 'features'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Activez ou désactivez des modules entiers de l'application. Un module désactivé disparaît du menu et de la réservation en ligne pour vos clients.
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_waitlist_enabled" class="form-check-input" id="featWaitlist" <?= ab_setting('feature_waitlist_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featWaitlist"><strong><i class="bi bi-bell"></i> Liste d'attente</strong></label>
+            <div class="text-muted small">Permet aux clients de s'inscrire pour être prévenus si un créneau se libère.</div>
+        </div>
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_reviews_enabled" class="form-check-input" id="featReviews" <?= ab_setting('feature_reviews_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featReviews"><strong><i class="bi bi-star"></i> Avis clients</strong></label>
+            <div class="text-muted small">Demande d'avis après rendez-vous, page d'avis publics et widget intégrable.</div>
+        </div>
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_tickets_enabled" class="form-check-input" id="featTickets" <?= ab_setting('feature_tickets_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featTickets"><strong><i class="bi bi-life-preserver"></i> Support (tickets)</strong></label>
+            <div class="text-muted small">Bulle d'aide sur la page de réservation et gestion des tickets côté admin.</div>
+        </div>
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_deposits_enabled" class="form-check-input" id="featDeposits" <?= ab_setting('feature_deposits_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featDeposits"><strong><i class="bi bi-cash-coin"></i> Acomptes</strong></label>
+            <div class="text-muted small">Page de gestion des acomptes côté admin.</div>
+        </div>
+        <div class="form-check form-switch">
+            <input type="checkbox" name="feature_google_calendar_enabled" class="form-check-input" id="featGoogle" <?= ab_setting('feature_google_calendar_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featGoogle"><strong><i class="bi bi-google"></i> Synchronisation Google Calendar</strong></label>
+            <div class="text-muted small">Synchronisation automatique des rendez-vous avec Google Calendar.</div>
+        </div>
     </div>
 </div>
             <?php endif; ?>

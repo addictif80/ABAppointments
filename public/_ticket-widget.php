@@ -4,6 +4,7 @@
  * Included at the bottom of public-facing pages (booking widget, account page).
  * Expects core/App.php to already be bootstrapped.
  */
+if (!ab_feature_enabled('tickets')) return;
 $_ticketWidgetProviders = Database::getInstance()->fetchAll(
     "SELECT id, first_name, last_name FROM ab_users WHERE is_active = 1 ORDER BY first_name"
 );

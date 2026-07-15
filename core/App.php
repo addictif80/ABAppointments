@@ -84,6 +84,23 @@ function ab_setting(string $key, string $default = ''): string {
     return Settings::get($key, $default);
 }
 
+// Modules that can be turned on/off from the "Fonctionnalités" admin settings tab.
+// Key => the ab_setting() key holding its enabled flag ('1' by default so existing
+// installs keep working exactly as before until an admin opts to disable something).
+const AB_TOGGLEABLE_FEATURES = [
+    'waitlist' => 'feature_waitlist_enabled',
+    'reviews' => 'feature_reviews_enabled',
+    'tickets' => 'feature_tickets_enabled',
+    'deposits' => 'feature_deposits_enabled',
+    'google_calendar' => 'feature_google_calendar_enabled',
+];
+
+function ab_feature_enabled(string $feature): bool {
+    $key = AB_TOGGLEABLE_FEATURES[$feature] ?? null;
+    if (!$key) return true;
+    return ab_setting($key, '1') === '1';
+}
+
 function ab_format_date(string $datetime): string {
     $format = ab_setting('date_format', 'd/m/Y');
     return date($format, strtotime($datetime));

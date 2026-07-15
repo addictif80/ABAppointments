@@ -6,6 +6,10 @@ require_once __DIR__ . '/../core/App.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+if (!ab_feature_enabled('tickets')) {
+    ab_json(['error' => 'Fonctionnalité désactivée'], 403);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ab_json(['error' => 'Méthode non autorisée'], 405);
 }
