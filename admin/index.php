@@ -24,6 +24,18 @@ if (!in_array($page, $allowedPages)) {
     $page = 'dashboard';
 }
 
+// Block direct access to pages whose module has been disabled from Settings > Fonctionnalités
+$pageFeatureMap = [
+    'waitlist' => 'waitlist',
+    'reviews' => 'reviews',
+    'tickets' => 'tickets',
+    'deposits' => 'deposits',
+];
+if (isset($pageFeatureMap[$page]) && !ab_feature_enabled($pageFeatureMap[$page])) {
+    ab_flash('error', 'Cette fonctionnalité est désactivée. Activez-la dans Paramètres > Fonctionnalités.');
+    ab_redirect(ab_url('admin/index.php?page=dashboard'));
+}
+
 $pageFile = __DIR__ . '/pages/' . $page . '.php';
 if (file_exists($pageFile)) {
     // Handle POST actions (skip CSRF for login which has its own handling)

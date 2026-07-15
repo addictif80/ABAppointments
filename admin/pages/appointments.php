@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $manager->updateStatus($appointmentId, $_POST['status']);
 
-        if ($_POST['status'] === 'confirmed') {
+        if ($_POST['status'] === 'confirmed' && ab_feature_enabled('google_calendar')) {
             // Sync to Google Calendar
             $gcal = new GoogleCalendar();
             if ($gcal->isConfigured()) {
@@ -75,9 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             try {
-                $gcal = new GoogleCalendar();
-                if ($gcal->isConfigured()) {
-                    $gcal->syncAppointment($result['id']);
+                if (ab_feature_enabled('google_calendar')) {
+                    $gcal = new GoogleCalendar();
+                    if ($gcal->isConfigured()) {
+                        $gcal->syncAppointment($result['id']);
+                    }
                 }
             } catch (Exception $e) {
                 error_log('ABAppointments gcal error: ' . $e->getMessage());

@@ -185,9 +185,11 @@ try {
 
                 // Sync to Google Calendar
                 try {
-                    $gcal = new GoogleCalendar();
-                    if ($gcal->isConfigured()) {
-                        $gcal->syncAppointment($result['id']);
+                    if (ab_feature_enabled('google_calendar')) {
+                        $gcal = new GoogleCalendar();
+                        if ($gcal->isConfigured()) {
+                            $gcal->syncAppointment($result['id']);
+                        }
                     }
                 } catch (Exception $e) {
                     error_log('ABAppointments gcal error: ' . $e->getMessage());
@@ -208,6 +210,9 @@ try {
             break;
 
         case 'waitlist-join':
+            if (!ab_feature_enabled('waitlist')) {
+                ab_json(['error' => 'Fonctionnalité désactivée'], 403);
+            }
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 ab_json(['error' => 'Méthode non autorisée'], 405);
             }
