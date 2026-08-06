@@ -936,81 +936,52 @@ if (!empty($_SESSION['customer_id'])) {
     })();
     </script>
     <?php endif; ?>
-    <script>
-    const API_URL = '<?= ab_url('api/index.php') ?>';
-    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0 };
-    let currentMonth = new Date();
-    let availableDaysCache = {};
-
-    // Step navigation
-    function goToStep(n) {
-        document.querySelectorAll('.booking-step').forEach(s => s.classList.remove('active'));
-        document.getElementById('step-' + n).classList.add('active');
-        document.querySelectorAll('.step-dot').forEach(d => {
-            const step = parseInt(d.dataset.step);
-            d.classList.toggle('active', step === n);
-            d.classList.toggle('done', step < n);
-        });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    new bootstrap.Modal(modalEl).show();
-}
-
-document.getElementById('waitlist-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const alertEl = document.getElementById('waitlist-alert');
-    const formData = new FormData(this);
-    const payload = Object.fromEntries(formData.entries());
-    payload.service_id = booking.serviceId;
-    payload.provider_id = booking.providerId;
-
-    fetch(API_URL + '?route=waitlist-join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) {
-                alertEl.className = 'alert alert-danger';
-                alertEl.textContent = data.error;
-                alertEl.classList.remove('d-none');
-                return;
-            }
-            bootstrap.Modal.getInstance(document.getElementById('waitlistModal')).hide();
-            alert('Vous avez bien été inscrit(e) à la liste d\'attente. Nous vous contacterons par email dès qu\'un créneau se libère.');
-        })
-        .catch(() => {
-            alertEl.className = 'alert alert-danger';
-            alertEl.textContent = 'Une erreur est survenue, veuillez réessayer.';
-            alertEl.classList.remove('d-none');
-        });
-});
-</script>
-<?php if ($modalEnabled && !empty($modalMessage)): ?>
-<script>
-(function() {
-    const maxViews = <?= $modalMaxViews ?>;
-    const msgHash = '<?= md5($modalMessage) ?>';
-    const storageKey = 'ab_modal_' + msgHash;
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('ab_modal_') && k !== storageKey) localStorage.removeItem(k);
-    }
-    let views = parseInt(localStorage.getItem(storageKey) || '0', 10);
-    if (views < maxViews) {
-        localStorage.setItem(storageKey, String(views + 1));
-        new bootstrap.Modal(document.getElementById('importantModal')).show();
-    }
-})();
-</script>
-<?php endif; ?>
 <script>
 const API_URL = '<?= ab_url('api/index.php') ?>';
 const FEATURE_WAITLIST_ENABLED = <?= ab_feature_enabled('waitlist') ? 'true' : 'false' ?>;
 let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0, dateOfBirth: '', guardian: null, selectedOptions: [] };
 let currentMonth = new Date();
 let availableDaysCache = {};
+
+function openWaitlistModal() {
+    const modalEl = document.getElementById('waitlistModal');
+    if (modalEl) new bootstrap.Modal(modalEl).show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const waitlistForm = document.getElementById('waitlist-form');
+    if (!waitlistForm) return;
+    waitlistForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const alertEl = document.getElementById('waitlist-alert');
+        const formData = new FormData(this);
+        const payload = Object.fromEntries(formData.entries());
+        payload.service_id = booking.serviceId;
+        payload.provider_id = booking.providerId;
+
+        fetch(API_URL + '?route=waitlist-join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alertEl.className = 'alert alert-danger';
+                    alertEl.textContent = data.error;
+                    alertEl.classList.remove('d-none');
+                    return;
+                }
+                bootstrap.Modal.getInstance(document.getElementById('waitlistModal')).hide();
+                alert('Vous avez bien été inscrit(e) à la liste d\'attente. Nous vous contacterons par email dès qu\'un créneau se libère.');
+            })
+            .catch(() => {
+                alertEl.className = 'alert alert-danger';
+                alertEl.textContent = 'Une erreur est survenue, veuillez réessayer.';
+                alertEl.classList.remove('d-none');
+            });
+    });
+});
 
 function goToStep(n) {
     document.querySelectorAll('.booking-step').forEach(s => s.classList.remove('active'));
