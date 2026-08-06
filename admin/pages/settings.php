@@ -45,6 +45,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => ['primary_color', 'secondary_color'],
             'checkbox' => ['embed_enabled'],
         ],
+        'age_check' => [
+            'text' => ['age_min_booking', 'age_min_solo'],
+            'checkbox' => ['age_check_enabled'],
+        ],
+        'cgv_cgs' => [
+            'text' => ['cgv_label', 'cgv_url', 'cgs_label', 'cgs_url'],
+            'checkbox' => ['cgv_enabled', 'cgs_enabled'],
+        ],
+        'reviews' => [
+            'text' => ['google_review_url', 'google_review_threshold'],
+            'checkbox' => ['google_review_prompt_enabled'],
+        ],
+        'features' => [
+            'text' => [],
+            'checkbox' => ['feature_waitlist_enabled', 'feature_reviews_enabled', 'feature_tickets_enabled', 'feature_deposits_enabled', 'feature_google_calendar_enabled'],
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -77,6 +93,10 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'smtp' ? 'active' : '' ?>" href="?page=settings&tab=smtp">Email SMTP</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'google' ? 'active' : '' ?>" href="?page=settings&tab=google">Google Calendar</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'appearance' ? 'active' : '' ?>" href="?page=settings&tab=appearance">Apparence</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'age_check' ? 'active' : '' ?>" href="?page=settings&tab=age_check">Âge minimum</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'cgv_cgs' ? 'active' : '' ?>" href="?page=settings&tab=cgv_cgs">CGV / CGS</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'reviews' ? 'active' : '' ?>" href="?page=settings&tab=reviews">Avis clients</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'features' ? 'active' : '' ?>" href="?page=settings&tab=features">Fonctionnalités</a></li>
 </ul>
 
 <div class="card">
@@ -228,6 +248,151 @@ $tab = $_GET['tab'] ?? 'general';
                     </div>
                 </div>
             </div>
+            <?php elseif ($tab === 'age_check'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Configurez les restrictions d'âge pour la prise de rendez-vous en ligne.
+            Les âges sont calculés automatiquement à partir de la date de naissance renseignée par le client.
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="age_check_enabled" class="form-check-input" id="ageCheckEnabled" <?= ab_setting('age_check_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="ageCheckEnabled"><strong>Activer la vérification d'âge</strong></label>
+        </div>
+        <small class="text-muted">Si désactivé, aucune restriction d'âge n'est appliquée lors de la réservation.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-x-circle text-danger"></i> Âge minimum pour réserver (accompagné)</label>
+        <input type="number" name="age_min_booking" class="form-control" min="0" max="100" value="<?= ab_escape(ab_setting('age_min_booking', '10')) ?>">
+        <small class="text-muted">En dessous de cet âge, la réservation en ligne est impossible. Mettre 0 pour désactiver cette limite.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-person-check text-success"></i> Âge pour réserver seul(e)</label>
+        <input type="number" name="age_min_solo" class="form-control" min="0" max="100" value="<?= ab_escape(ab_setting('age_min_solo', '18')) ?>">
+        <small class="text-muted">À partir de cet âge, le client peut réserver sans accompagnateur.</small>
+    </div>
+    <div class="col-12">
+        <div class="alert alert-secondary mt-2">
+            <strong>Exemple :</strong> Âge minimum 10 ans, réservation seul à 18 ans.<br>
+            → Un client de 8 ans : réservation impossible.<br>
+            → Un client de 14 ans : réservation possible avec un accompagnateur adulte (prénom, nom, téléphone, email requis).<br>
+            → Un client de 20 ans : réservation normale.
+        </div>
+    </div>
+</div>
+            <?php elseif ($tab === 'cgv_cgs'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Configurez les conditions générales à accepter lors de la réservation en ligne. Chaque case à cocher est indépendante et peut être activée séparément.
+        </div>
+    </div>
+    <div class="col-12"><hr class="mt-0"><h6 class="text-muted text-uppercase small">Conditions générales de vente (CGV)</h6></div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="cgv_enabled" class="form-check-input" id="cgvEnabled" <?= ab_setting('cgv_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="cgvEnabled"><strong>Activer la case CGV</strong></label>
+        </div>
+        <small class="text-muted">Le client devra cocher cette case avant de valider son rendez-vous.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Texte du lien</label>
+        <input type="text" name="cgv_label" class="form-control" value="<?= ab_escape(ab_setting('cgv_label', 'les conditions générales de vente')) ?>" placeholder="les conditions générales de vente">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">URL des CGV</label>
+        <input type="url" name="cgv_url" class="form-control" value="<?= ab_escape(ab_setting('cgv_url')) ?>" placeholder="https://exemple.fr/cgv">
+        <small class="text-muted">Laissez vide pour afficher le texte sans lien cliquable.</small>
+    </div>
+    <div class="col-12"><hr class="mb-0"><h6 class="text-muted text-uppercase small mt-3">Conditions générales de services (CGS)</h6></div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="cgs_enabled" class="form-check-input" id="cgsEnabled" <?= ab_setting('cgs_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="cgsEnabled"><strong>Activer la case CGS</strong></label>
+        </div>
+        <small class="text-muted">Le client devra cocher cette case avant de valider son rendez-vous.</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Texte du lien</label>
+        <input type="text" name="cgs_label" class="form-control" value="<?= ab_escape(ab_setting('cgs_label', 'les conditions générales de services')) ?>" placeholder="les conditions générales de services">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">URL des CGS</label>
+        <input type="url" name="cgs_url" class="form-control" value="<?= ab_escape(ab_setting('cgs_url')) ?>" placeholder="https://exemple.fr/cgs">
+        <small class="text-muted">Laissez vide pour afficher le texte sans lien cliquable.</small>
+    </div>
+</div>
+            <?php elseif ($tab === 'reviews'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Après un avis interne positif, proposez au client de le partager aussi sur votre fiche Google Business (Google ne permet pas de publier automatiquement des avis clients via une API).
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="google_review_prompt_enabled" class="form-check-input" id="googleReviewPromptEnabled" <?= ab_setting('google_review_prompt_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="googleReviewPromptEnabled"><strong>Proposer de noter aussi sur Google</strong></label>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <label class="form-label">Lien "Laisser un avis Google"</label>
+        <input type="url" name="google_review_url" class="form-control" value="<?= ab_escape(ab_setting('google_review_url')) ?>" placeholder="https://g.page/r/xxxxxxxx/review">
+        <small class="text-muted">Trouvez ce lien dans votre fiche Google Business Profile ("Obtenir plus d'avis").</small>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Note minimale requise</label>
+        <input type="number" name="google_review_threshold" class="form-control" min="1" max="5" value="<?= ab_escape(ab_setting('google_review_threshold', '4')) ?>">
+        <small class="text-muted">Le lien Google n'est proposé qu'à partir de cette note (sur 5).</small>
+    </div>
+    <div class="col-12"><hr><h6 class="text-muted text-uppercase small">Widget d'avis intégrable</h6></div>
+    <div class="col-12">
+        <label class="form-label">Code à intégrer sur votre site (iframe)</label>
+        <textarea class="form-control" rows="3" readonly onclick="this.select()"><iframe src="<?= ab_escape(ab_url('public/reviews-widget.php')) ?>" style="width:100%;max-width:900px;border:0;height:420px;" loading="lazy"></iframe></textarea>
+        <small class="text-muted">Copiez ce code dans une page HTML pour afficher vos avis (note moyenne + derniers avis approuvés) sur votre site.</small>
+    </div>
+</div>
+            <?php elseif ($tab === 'features'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Activez ou désactivez des modules entiers de l'application. Un module désactivé disparaît du menu et de la réservation en ligne pour vos clients.
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_waitlist_enabled" class="form-check-input" id="featWaitlist" <?= ab_setting('feature_waitlist_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featWaitlist"><strong><i class="bi bi-bell"></i> Liste d'attente</strong></label>
+            <div class="text-muted small">Permet aux clients de s'inscrire pour être prévenus si un créneau se libère.</div>
+        </div>
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_reviews_enabled" class="form-check-input" id="featReviews" <?= ab_setting('feature_reviews_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featReviews"><strong><i class="bi bi-star"></i> Avis clients</strong></label>
+            <div class="text-muted small">Demande d'avis après rendez-vous, page d'avis publics et widget intégrable.</div>
+        </div>
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_tickets_enabled" class="form-check-input" id="featTickets" <?= ab_setting('feature_tickets_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featTickets"><strong><i class="bi bi-life-preserver"></i> Support (tickets)</strong></label>
+            <div class="text-muted small">Bulle d'aide sur la page de réservation et gestion des tickets côté admin.</div>
+        </div>
+        <div class="form-check form-switch mb-3">
+            <input type="checkbox" name="feature_deposits_enabled" class="form-check-input" id="featDeposits" <?= ab_setting('feature_deposits_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featDeposits"><strong><i class="bi bi-cash-coin"></i> Acomptes</strong></label>
+            <div class="text-muted small">Page de gestion des acomptes côté admin.</div>
+        </div>
+        <div class="form-check form-switch">
+            <input type="checkbox" name="feature_google_calendar_enabled" class="form-check-input" id="featGoogle" <?= ab_setting('feature_google_calendar_enabled', '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="featGoogle"><strong><i class="bi bi-google"></i> Synchronisation Google Calendar</strong></label>
+            <div class="text-muted small">Synchronisation automatique des rendez-vous avec Google Calendar.</div>
+        </div>
+    </div>
+</div>
             <?php endif; ?>
 
             <hr>

@@ -3,15 +3,25 @@ $db = Database::getInstance();
 $manager = new AppointmentManager();
 $action = $_GET['action'] ?? 'list';
 
+// A provider may only act on their own appointments; admins can act on any.
+function ab_can_manage_appointment(array $appointment): bool {
+    return Auth::isAdmin() || (int)$appointment['provider_id'] === Auth::userId();
+}
+
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postAction = $_POST['action'] ?? '';
 
     if ($postAction === 'update_status' && isset($_POST['id'], $_POST['status'])) {
         $appointmentId = (int)$_POST['id'];
+        $existing = $manager->getAppointment($appointmentId);
+        if (!$existing || !ab_can_manage_appointment($existing)) {
+            http_response_code(403);
+            exit('Accès refusé.');
+        }
         $manager->updateStatus($appointmentId, $_POST['status']);
 
-        if ($_POST['status'] === 'confirmed') {
+        if ($_POST['status'] === 'confirmed' && ab_feature_enabled('google_calendar')) {
             // Sync to Google Calendar
             $gcal = new GoogleCalendar();
             if ($gcal->isConfigured()) {
@@ -20,6 +30,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         ab_flash('success', 'Statut mis à jour.');
         ab_redirect(ab_url('admin/index.php?page=appointments&action=view&id=' . $_POST['id']));
+    }
+
+    if ($postAction === 'reschedule' && isset($_POST['id'], $_POST['date'], $_POST['time'])) {
+        $appointmentId = (int)$_POST['id'];
+        $existing = $manager->getAppointment($appointmentId);
+        if (!$existing || !ab_can_manage_appointment($existing)) {
+            http_response_code(403);
+            exit('Accès refusé.');
+        }
+        $newStartDatetime = $_POST['date'] . ' ' . $_POST['time'] . ':00';
+        $result = $manager->reschedule($appointmentId, $newStartDatetime);
+        if ($result['success']) {
+            ab_flash('success', 'Rendez-vous déplacé et client notifié par email.');
+        } else {
+            $errors = [
+                'conflict' => 'Ce créneau est déjà occupé.',
+                'cancelled' => 'Impossible de modifier un rendez-vous annulé.',
+                'not_found' => 'Rendez-vous introuvable.',
+                'service_not_found' => 'Prestation introuvable.',
+            ];
+            ab_flash('error', $errors[$result['error']] ?? 'Erreur lors de la modification.');
+        }
+        ab_redirect(ab_url('admin/index.php?page=appointments&action=view&id=' . $appointmentId));
     }
 
     if ($postAction === 'create') {
@@ -35,7 +68,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'notes' => trim($_POST['notes'] ?? ''),
         ]);
         if ($result) {
-            ab_flash('success', 'Rendez-vous créé avec succès.');
+            try {
+                $manager->sendNotifications($result['id'], $result['status'], $result['deposit']);
+            } catch (Exception $e) {
+                error_log('ABAppointments email error: ' . $e->getMessage());
+            }
+
+            try {
+                if (ab_feature_enabled('google_calendar')) {
+                    $gcal = new GoogleCalendar();
+                    if ($gcal->isConfigured()) {
+                        $gcal->syncAppointment($result['id']);
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('ABAppointments gcal error: ' . $e->getMessage());
+            }
+
+            try {
+                $caldav = new CalDAV();
+                $caldav->syncAppointment($result['id']);
+            } catch (Exception $e) {
+                error_log('ABAppointments caldav error: ' . $e->getMessage());
+            }
+
+            ab_flash('success', 'Rendez-vous créé avec succès. Le client a été notifié par email.');
         } else {
             ab_flash('error', 'Erreur lors de la création.');
         }
@@ -44,6 +101,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($postAction === 'delete' && isset($_POST['id'])) {
         $appointmentId = (int)$_POST['id'];
+        $existing = $manager->getAppointment($appointmentId);
+        if (!$existing || !ab_can_manage_appointment($existing)) {
+            http_response_code(403);
+            exit('Accès refusé.');
+        }
         // Remove from CalDAV before deleting from database
         try {
             $caldav = new CalDAV();
@@ -60,6 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'view' && isset($_GET['id'])):
     $appointment = $manager->getAppointment((int)$_GET['id']);
     if (!$appointment) { ab_flash('error', 'Rendez-vous non trouvé.'); ab_redirect(ab_url('admin/index.php?page=appointments')); }
+    if (!ab_can_manage_appointment($appointment)) {
+        http_response_code(403);
+        exit('Accès refusé.');
+    }
     $deposit = $db->fetchOne("SELECT * FROM ab_deposits WHERE appointment_id = ?", [$appointment['id']]);
 ?>
 <div class="row">
@@ -155,6 +221,29 @@ if ($action === 'view' && isset($_GET['id'])):
         <div class="card">
             <div class="card-header bg-white"><h6 class="mb-0">Actions</h6></div>
             <div class="card-body d-grid gap-2">
+                <?php if (in_array($appointment['status'], ['pending', 'confirmed'])): ?>
+                <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="collapse" data-bs-target="#rescheduleForm">
+                    <i class="bi bi-calendar-event"></i> Modifier la date/heure
+                </button>
+                <div class="collapse" id="rescheduleForm">
+                    <form method="POST" class="border rounded p-2 mt-1" onsubmit="return confirm('Déplacer ce rendez-vous ? Le client sera notifié par email.')">
+                        <?= Auth::csrfField() ?>
+                        <input type="hidden" name="action" value="reschedule">
+                        <input type="hidden" name="id" value="<?= $appointment['id'] ?>">
+                        <div class="mb-2">
+                            <label class="form-label">Nouvelle date</label>
+                            <input type="date" name="date" class="form-control form-control-sm" required
+                                   value="<?= date('Y-m-d', strtotime($appointment['start_datetime'])) ?>" min="<?= date('Y-m-d') ?>">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Nouvelle heure</label>
+                            <input type="time" name="time" class="form-control form-control-sm" required step="900"
+                                   value="<?= date('H:i', strtotime($appointment['start_datetime'])) ?>">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-check"></i> Confirmer le changement</button>
+                    </form>
+                </div>
+                <?php endif; ?>
                 <?php if ($appointment['status'] === 'pending'): ?>
                 <form method="POST">
                     <?= Auth::csrfField() ?>
@@ -357,6 +446,7 @@ document.addEventListener('DOMContentLoaded', function() {
             height: 'auto',
             events: '<?= ab_url('api/index.php?route=calendar-events') ?>',
             eventClick: function(info) {
+                if (info.event.extendedProps.type === 'holiday') return;
                 window.location.href = '<?= ab_url('admin/index.php?page=appointments&action=view&id=') ?>' + info.event.id;
             }
         });

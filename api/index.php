@@ -75,6 +75,48 @@ try {
                 ab_json(['error' => 'Le téléphone est requis'], 400);
             }
 
+            // Validate and parse date_of_birth
+            $dobRaw = trim($input['date_of_birth'] ?? '');
+            if (empty($dobRaw)) {
+                ab_json(['error' => 'La date de naissance est requise'], 400);
+            }
+            $dobDb = ab_parse_dob($dobRaw);
+            if (!$dobDb) {
+                ab_json(['error' => 'Date de naissance invalide (format JJ.MM.AAAA)'], 400);
+            }
+
+            // Parse selected option IDs
+            $selectedOptionIds = array_values(array_filter(
+                array_map('intval', $input['options'] ?? []),
+                fn($id) => $id > 0
+            ));
+
+            // Server-side age check
+            $needsGuardian = false;
+            if (ab_setting('age_check_enabled', '0') === '1') {
+                $ageMinBooking = (int) ab_setting('age_min_booking', '10');
+                $ageMinSolo    = (int) ab_setting('age_min_solo', '18');
+                $dobDate = new DateTime($dobDb);
+                $today   = new DateTime('today');
+                $age     = (int) $today->diff($dobDate)->y;
+
+                if ($ageMinBooking > 0 && $age < $ageMinBooking) {
+                    ab_json(['error' => "Vous devez avoir au moins {$ageMinBooking} ans pour réserver en ligne."], 400);
+                }
+                if ($ageMinSolo > 0 && $age < $ageMinSolo) {
+                    // Guardian required
+                    $guardian = $input['guardian'] ?? null;
+                    if (empty($guardian) || empty($guardian['first_name']) || empty($guardian['last_name'])
+                        || empty($guardian['phone']) || empty($guardian['email'])) {
+                        ab_json(['error' => 'Toutes les informations de l\'accompagnateur sont requises.'], 400);
+                    }
+                    if (!filter_var($guardian['email'], FILTER_VALIDATE_EMAIL)) {
+                        ab_json(['error' => 'L\'email de l\'accompagnateur est invalide.'], 400);
+                    }
+                    $needsGuardian = true;
+                }
+            }
+
             // Validate slot availability
             $slots = $manager->getAvailableSlots((int)$input['provider_id'], (int)$input['service_id'], $input['date']);
             if (!in_array($input['time'], $slots)) {
@@ -92,6 +134,13 @@ try {
                 'email' => trim($input['email']),
                 'phone' => htmlspecialchars(trim($input['phone'] ?? ''), ENT_QUOTES, 'UTF-8'),
                 'notes' => htmlspecialchars(trim($input['notes'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                'date_of_birth' => $dobDb,
+                'needs_guardian'       => $needsGuardian,
+                'guardian_first_name'  => $needsGuardian ? htmlspecialchars(trim($input['guardian']['first_name']), ENT_QUOTES, 'UTF-8') : null,
+                'guardian_last_name'   => $needsGuardian ? htmlspecialchars(trim($input['guardian']['last_name']), ENT_QUOTES, 'UTF-8') : null,
+                'guardian_phone'       => $needsGuardian ? htmlspecialchars(trim($input['guardian']['phone']), ENT_QUOTES, 'UTF-8') : null,
+                'guardian_email'       => $needsGuardian ? trim($input['guardian']['email']) : null,
+                'options'              => $selectedOptionIds,
             ]);
 
             if ($result) {
@@ -99,6 +148,7 @@ try {
                     'success' => true,
                     'hash' => $result['hash'],
                     'status' => $result['status'],
+                    'needs_guardian' => $result['needs_guardian'] ?? false,
                     'deposit' => $result['deposit'],
                     'manage_url' => ab_url('manage/' . $result['hash']),
                 ];
@@ -126,9 +176,11 @@ try {
 
                 // Sync to Google Calendar
                 try {
-                    $gcal = new GoogleCalendar();
-                    if ($gcal->isConfigured()) {
-                        $gcal->syncAppointment($result['id']);
+                    if (ab_feature_enabled('google_calendar')) {
+                        $gcal = new GoogleCalendar();
+                        if ($gcal->isConfigured()) {
+                            $gcal->syncAppointment($result['id']);
+                        }
                     }
                 } catch (Exception $e) {
                     error_log('ABAppointments gcal error: ' . $e->getMessage());
@@ -146,6 +198,54 @@ try {
             } else {
                 ab_json(['error' => 'Erreur lors de la création du rendez-vous'], 500);
             }
+            break;
+
+        case 'waitlist-join':
+            if (!ab_feature_enabled('waitlist')) {
+                ab_json(['error' => 'Fonctionnalité désactivée'], 403);
+            }
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                ab_json(['error' => 'Méthode non autorisée'], 405);
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input) {
+                ab_json(['error' => 'Données invalides'], 400);
+            }
+
+            $required = ['service_id', 'first_name', 'last_name', 'email', 'desired_date_start', 'desired_date_end'];
+            foreach ($required as $field) {
+                if (empty($input[$field])) {
+                    ab_json(['error' => "Le champ '$field' est requis"], 400);
+                }
+            }
+
+            if (!filter_var($input['email'], FILTER_VALIDATE_EMAIL)) {
+                ab_json(['error' => 'Email invalide'], 400);
+            }
+
+            $service = $db->fetchOne("SELECT id FROM ab_services WHERE id = ? AND is_active = 1", [(int)$input['service_id']]);
+            if (!$service) {
+                ab_json(['error' => 'Prestation invalide'], 400);
+            }
+
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['desired_date_start']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['desired_date_end'])) {
+                ab_json(['error' => 'Dates invalides'], 400);
+            }
+
+            $waitlist = new Waitlist();
+            $waitlist->join([
+                'service_id' => (int)$input['service_id'],
+                'provider_id' => (int)($input['provider_id'] ?? 0),
+                'first_name' => htmlspecialchars(trim($input['first_name']), ENT_QUOTES, 'UTF-8'),
+                'last_name' => htmlspecialchars(trim($input['last_name']), ENT_QUOTES, 'UTF-8'),
+                'email' => trim($input['email']),
+                'phone' => htmlspecialchars(trim($input['phone'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                'desired_date_start' => $input['desired_date_start'],
+                'desired_date_end' => $input['desired_date_end'],
+            ]);
+
+            ab_json(['success' => true]);
             break;
 
         case 'calendar-events':
@@ -174,7 +274,65 @@ try {
                 ];
             }, $appointments);
 
+            // Add holidays as all-day events
+            $holidaySql = "SELECT h.id, h.title, h.date_start, h.date_end, h.provider_id,
+                                  u.first_name as provider_first, u.last_name as provider_last
+                           FROM ab_holidays h
+                           LEFT JOIN ab_users u ON h.provider_id = u.id
+                           WHERE h.date_end >= ? AND h.date_start <= ?";
+            $holidayParams = [$start, $end];
+            if ($providerId) {
+                $holidaySql .= " AND (h.provider_id = ? OR h.provider_id IS NULL)";
+                $holidayParams[] = $providerId;
+            }
+            $holidays = $db->fetchAll($holidaySql, $holidayParams);
+
+            foreach ($holidays as $h) {
+                $isGlobal = $h['provider_id'] === null;
+                $providerLabel = $isGlobal ? '' : ($h['provider_first'] . ' ' . $h['provider_last'] . ' – ');
+                // FullCalendar end dates are exclusive — add 1 day to the inclusive date_end
+                $endExclusive = date('Y-m-d', strtotime($h['date_end'] . ' +1 day'));
+                // Use background display so the holiday shows in week/day views even with allDaySlot: false
+                $events[] = [
+                    'id'      => 'holiday-' . $h['id'],
+                    'title'   => '🔒 ' . $providerLabel . $h['title'],
+                    'start'   => $h['date_start'],
+                    'end'     => $endExclusive,
+                    'display' => 'background',
+                    'color'   => $isGlobal ? '#e57373' : '#ffb74d',
+                    'extendedProps' => ['type' => 'holiday'],
+                ];
+                // Regular all-day event for month view (hidden in week/day because allDaySlot: false)
+                $events[] = [
+                    'id'        => 'holiday-label-' . $h['id'],
+                    'title'     => '🔒 ' . $providerLabel . $h['title'],
+                    'start'     => $h['date_start'],
+                    'end'       => $endExclusive,
+                    'allDay'    => true,
+                    'color'     => $isGlobal ? '#e57373' : '#ffb74d',
+                    'textColor' => '#fff',
+                    'extendedProps' => ['type' => 'holiday'],
+                ];
+            }
+
             ab_json($events);
+            break;
+
+        case 'booking-options':
+            $serviceId = (int)($_GET['service_id'] ?? 0);
+            if (!$serviceId) ab_json(['error' => 'service_id requis'], 400);
+            $options = $db->fetchAll(
+                "SELECT o.id, o.name, o.description, o.price_type, o.price_value
+                 FROM ab_booking_options o
+                 WHERE o.is_active = 1
+                   AND (
+                     NOT EXISTS (SELECT 1 FROM ab_booking_option_services bos WHERE bos.option_id = o.id)
+                     OR EXISTS  (SELECT 1 FROM ab_booking_option_services bos WHERE bos.option_id = o.id AND bos.service_id = ?)
+                   )
+                 ORDER BY o.sort_order, o.name",
+                [$serviceId]
+            );
+            ab_json(['options' => $options]);
             break;
 
         case 'services':

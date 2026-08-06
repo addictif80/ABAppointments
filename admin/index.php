@@ -16,12 +16,24 @@ if (!in_array($page, $publicPages)) {
 // Route to page
 $allowedPages = [
     'login', 'dashboard', 'appointments', 'services', 'categories',
-    'providers', 'customers', 'settings', 'working-hours', 'holidays',
-    'deposits', 'email-templates', 'google-callback', 'profile'
+    'booking-options', 'providers', 'customers', 'settings', 'working-hours', 'holidays',
+    'deposits', 'email-templates', 'google-callback', 'profile', 'waitlist', 'reviews', 'tickets'
 ];
 
 if (!in_array($page, $allowedPages)) {
     $page = 'dashboard';
+}
+
+// Block direct access to pages whose module has been disabled from Settings > Fonctionnalités
+$pageFeatureMap = [
+    'waitlist' => 'waitlist',
+    'reviews' => 'reviews',
+    'tickets' => 'tickets',
+    'deposits' => 'deposits',
+];
+if (isset($pageFeatureMap[$page]) && !ab_feature_enabled($pageFeatureMap[$page])) {
+    ab_flash('error', 'Cette fonctionnalité est désactivée. Activez-la dans Paramètres > Fonctionnalités.');
+    ab_redirect(ab_url('admin/index.php?page=dashboard'));
 }
 
 $pageFile = __DIR__ . '/pages/' . $page . '.php';

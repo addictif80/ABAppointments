@@ -45,14 +45,27 @@ $canCancel = ab_setting('allow_customer_cancel', '1') === '1'
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
+        html, body { overflow-x: hidden; max-width: 100%; }
         body { background: #f8f9fa; }
-        .manage-card { max-width: 600px; margin: 40px auto; }
+        .manage-card { max-width: 600px; margin: 40px auto; padding: 0 10px; }
         .status-badge { font-size: 1rem; }
-        .header-bar { background: <?= $primaryColor ?>; color: #fff; padding: 20px; text-align: center; }
+        .header-bar { background: <?= $primaryColor ?>; color: #fff; padding: 20px; text-align: center; position: relative; }
+        .prestataire-link { position: absolute; top: 10px; right: 15px; color: rgba(255,255,255,0.7); font-size: 0.75rem; text-decoration: none; background: rgba(0,0,0,0.18); padding: 5px 12px; border-radius: 20px; transition: all 0.2s; white-space: nowrap; }
+        .prestataire-link:hover { color: #fff; background: rgba(0,0,0,0.35); }
+        .table td { word-break: break-word; }
+        @media (max-width: 480px) {
+            .header-bar { padding: 16px 15px 20px; }
+            .header-bar h4 { font-size: 1.1rem; }
+            .manage-card { margin: 20px auto; }
+            .card-body { padding: 1rem; }
+            .table td { font-size: 0.9rem; padding: 6px 8px; }
+            .btn { font-size: 0.9rem; }
+        }
     </style>
 </head>
 <body>
     <div class="header-bar">
+        <a href="<?= ab_url('admin/index.php') ?>" class="prestataire-link"><i class="bi bi-grid-3x3-gap-fill"></i> Prestataire</a>
         <h4><i class="bi bi-calendar-heart"></i> <?= ab_escape($businessName) ?></h4>
     </div>
 

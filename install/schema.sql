@@ -187,6 +187,82 @@ CREATE TABLE IF NOT EXISTS `ab_deposits` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
+-- Table: waitlist
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ab_waitlist` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `service_id` INT UNSIGNED NOT NULL,
+  `provider_id` INT UNSIGNED NULL,
+  `first_name` VARCHAR(100) NOT NULL,
+  `last_name` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `phone` VARCHAR(30) NULL,
+  `desired_date_start` DATE NOT NULL,
+  `desired_date_end` DATE NOT NULL,
+  `status` ENUM('waiting','notified','booked','cancelled') NOT NULL DEFAULT 'waiting',
+  `notified_at` DATETIME NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`service_id`) REFERENCES `ab_services`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: reviews
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ab_reviews` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `appointment_id` INT UNSIGNED NOT NULL,
+  `rating` TINYINT UNSIGNED NOT NULL,
+  `comment` TEXT NULL,
+  `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `submitted_at` DATETIME NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `appointment_id` (`appointment_id`),
+  FOREIGN KEY (`appointment_id`) REFERENCES `ab_appointments`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: tickets (support)
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ab_tickets` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `hash` VARCHAR(64) NOT NULL,
+  `customer_id` INT UNSIGNED NOT NULL,
+  `subject` VARCHAR(255) NOT NULL,
+  `category` ENUM('commercial','technique') NOT NULL,
+  `assigned_provider_id` INT UNSIGNED NULL,
+  `status` ENUM('open','resolved','closed') NOT NULL DEFAULT 'open',
+  `created_by` ENUM('customer','staff') NOT NULL DEFAULT 'customer',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `hash` (`hash`),
+  FOREIGN KEY (`customer_id`) REFERENCES `ab_customers`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`assigned_provider_id`) REFERENCES `ab_users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ab_ticket_messages` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `ticket_id` INT UNSIGNED NOT NULL,
+  `sender_type` ENUM('customer','staff') NOT NULL,
+  `sender_user_id` INT UNSIGNED NULL,
+  `body` TEXT NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`ticket_id`) REFERENCES `ab_tickets`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`sender_user_id`) REFERENCES `ab_users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ab_ticket_attachments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `message_id` INT UNSIGNED NOT NULL,
+  `original_filename` VARCHAR(255) NOT NULL,
+  `stored_filename` VARCHAR(255) NOT NULL,
+  `mime_type` VARCHAR(150) NOT NULL,
+  `size_bytes` INT UNSIGNED NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`message_id`) REFERENCES `ab_ticket_messages`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
 -- Table: email_templates
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ab_email_templates` (
@@ -358,7 +434,84 @@ INSERT INTO `ab_email_templates` (`slug`, `name`, `subject`, `body`, `variables`
 </table>
 <p>Pour annuler ou modifier :<br><a href="{manage_url}">Gérer mon rendez-vous</a></p>
 <p>A bientôt !<br>{business_name}</p>',
-'["customer_name","service_name","appointment_date","appointment_time","manage_url","business_name"]');
+'["customer_name","service_name","appointment_date","appointment_time","manage_url","business_name"]'),
+
+('appointment_modified', 'Modification de rendez-vous', 'Modification de votre rendez-vous - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Votre rendez-vous pour la prestation "{service_name}" a été modifié par {business_name}.</p>
+<table style="border-collapse:collapse;width:100%;max-width:500px;">
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Ancienne date</td><td style="padding:8px;border:1px solid #ddd;">{old_date} à {old_time}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Nouvelle date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Nouvelle heure</td><td style="padding:8px;border:1px solid #ddd;">{appointment_time}</td></tr>
+</table>
+<p>Pour consulter ou annuler votre rendez-vous :<br><a href="{manage_url}">Gérer mon rendez-vous</a></p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","service_name","old_date","old_time","appointment_date","appointment_time","manage_url","business_name"]'),
+
+('waitlist_slot_available', 'Créneau disponible (liste d''attente)', 'Un créneau s''est libéré - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Bonne nouvelle ! Un créneau s''est libéré pour la prestation que vous attendiez :</p>
+<table style="border-collapse:collapse;width:100%;max-width:500px;">
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestation</td><td style="padding:8px;border:1px solid #ddd;">{service_name}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Date</td><td style="padding:8px;border:1px solid #ddd;">{appointment_date}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Prestataire</td><td style="padding:8px;border:1px solid #ddd;">{provider_name}</td></tr>
+</table>
+<p>Réservez vite, ce créneau peut être repris à tout moment :<br><a href="{booking_url}">Réserver ce créneau</a></p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","service_name","appointment_date","provider_name","booking_url","business_name"]'),
+
+('review_request', 'Demande d''avis', 'Votre avis nous intéresse - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Nous espérons que votre rendez-vous du {appointment_date} pour "{service_name}" s''est bien passé !</p>
+<p>Votre avis compte beaucoup pour nous, auriez-vous une minute pour le partager ?</p>
+<p><a href="{review_url}" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Laisser un avis</a></p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","service_name","appointment_date","review_url","business_name"]'),
+
+('ticket_created_customer', 'Ticket ouvert (confirmation client)', 'Votre demande de support a été enregistrée - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Votre demande de support a bien été enregistrée :</p>
+<table style="border-collapse:collapse;width:100%;max-width:500px;">
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Sujet</td><td style="padding:8px;border:1px solid #ddd;">{subject}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Catégorie</td><td style="padding:8px;border:1px solid #ddd;">{category_label}</td></tr>
+</table>
+<p>Vous pouvez suivre et répondre à ce ticket à tout moment :<br><a href="{ticket_url}">Voir mon ticket</a></p>
+<p>Nous reviendrons vers vous dans les meilleurs délais.</p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","subject","category_label","ticket_url","business_name"]'),
+
+('ticket_created_staff', 'Nouveau ticket (notification prestataire/admin)', 'Nouveau ticket de support - {subject}',
+'<h2>Nouveau ticket de support</h2>
+<table style="border-collapse:collapse;width:100%;max-width:500px;">
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Client</td><td style="padding:8px;border:1px solid #ddd;">{customer_name}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Sujet</td><td style="padding:8px;border:1px solid #ddd;">{subject}</td></tr>
+<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Catégorie</td><td style="padding:8px;border:1px solid #ddd;">{category_label}</td></tr>
+</table>
+<p>{message_excerpt}</p>
+<p><a href="{admin_url}" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Voir le ticket</a></p>',
+'["customer_name","subject","category_label","message_excerpt","admin_url"]'),
+
+('ticket_reply_customer', 'Nouvelle réponse (notification client)', 'Nouvelle réponse à votre ticket - {subject}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Vous avez reçu une nouvelle réponse concernant votre ticket "{subject}" :</p>
+<blockquote style="margin:12px 0;padding:10px 15px;background:#f8f9fa;border-left:3px solid #e91e63;color:#555;">{message_excerpt}</blockquote>
+<p><a href="{ticket_url}">Voir la conversation et répondre</a></p>
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","subject","message_excerpt","ticket_url","business_name"]'),
+
+('ticket_reply_staff', 'Nouvelle réponse client (notification prestataire/admin)', 'Le client a répondu - {subject}',
+'<h2>Nouvelle réponse du client</h2>
+<p><strong>{customer_name}</strong> a répondu au ticket "{subject}" :</p>
+<blockquote style="margin:12px 0;padding:10px 15px;background:#f8f9fa;border-left:3px solid #e91e63;color:#555;">{message_excerpt}</blockquote>
+<p><a href="{admin_url}" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Voir et répondre</a></p>',
+'["customer_name","subject","message_excerpt","admin_url"]'),
+
+('ticket_recovery', 'Récupération des liens de tickets', 'Vos tickets de support - {business_name}',
+'<h2>Bonjour {customer_name},</h2>
+<p>Voici vos tickets de support en cours :</p>
+{tickets_list}
+<p>Cordialement,<br>{business_name}</p>',
+'["customer_name","tickets_list","business_name"]');
 
 -- Admin par défaut (mot de passe: admin123 - à changer !)
 INSERT INTO `ab_users` (`first_name`, `last_name`, `email`, `password`, `role`) VALUES

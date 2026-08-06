@@ -3,6 +3,7 @@ $currentPage = $pageContent;
 $userName = $_SESSION['user_name'] ?? 'Admin';
 $isAdmin = Auth::isAdmin();
 $primaryColor = ab_setting('primary_color', '#e91e63');
+$openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -10,13 +11,19 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= ab_escape(ab_setting('business_name', 'ABAppointments')) ?> - Administration</title>
+    <link rel="manifest" href="<?= ab_url('admin/manifest.php') ?>">
+    <meta name="theme-color" content="<?= ab_escape($primaryColor) ?>">
+    <link rel="icon" href="<?= ab_url('admin/icon.php') ?>" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="<?= ab_url('admin/icon.php?maskable=1') ?>">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="<?= ab_escape(ab_setting('business_name', 'ABAppointments')) ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
     <style>
         :root { --ab-primary: <?= $primaryColor ?>; --ab-primary-dark: color-mix(in srgb, <?= $primaryColor ?> 80%, black); }
         body { background: #f4f6f9; }
-        .sidebar { width: 260px; min-height: 100vh; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
+        .sidebar { width: 260px; height: 100vh; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; padding-bottom: env(safe-area-inset-bottom); }
         .sidebar .brand { padding: 20px; color: #fff; font-size: 1.2rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .sidebar .nav-link { color: rgba(255,255,255,0.7); padding: 12px 20px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; border-left: 3px solid transparent; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.08); border-left-color: var(--ab-primary); }
@@ -34,6 +41,14 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
         .badge-no_show { background: #fd7e14; }
         .badge-paid { background: #28a745; }
         .badge-refunded { background: #17a2b8; }
+        .badge-waiting { background: #ffc107; color: #000; }
+        .badge-notified { background: #17a2b8; }
+        .badge-booked { background: #28a745; }
+        .badge-approved { background: #28a745; }
+        .badge-rejected { background: #dc3545; }
+        .badge-open { background: #ffc107; color: #000; }
+        .badge-resolved { background: #28a745; }
+        .badge-closed { background: #6c757d; }
         .nav-section { padding: 15px 20px 5px; color: rgba(255,255,255,0.4); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
@@ -58,9 +73,27 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
             <a href="<?= ab_url('admin/index.php?page=customers') ?>" class="nav-link <?= $currentPage === 'customers' ? 'active' : '' ?>">
                 <i class="bi bi-people"></i> Clients
             </a>
+            <?php if (ab_feature_enabled('deposits')): ?>
             <a href="<?= ab_url('admin/index.php?page=deposits') ?>" class="nav-link <?= $currentPage === 'deposits' ? 'active' : '' ?>">
                 <i class="bi bi-cash-coin"></i> Acomptes
             </a>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('waitlist')): ?>
+            <a href="<?= ab_url('admin/index.php?page=waitlist') ?>" class="nav-link <?= $currentPage === 'waitlist' ? 'active' : '' ?>">
+                <i class="bi bi-bell"></i> Liste d'attente
+            </a>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('reviews')): ?>
+            <a href="<?= ab_url('admin/index.php?page=reviews') ?>" class="nav-link <?= $currentPage === 'reviews' ? 'active' : '' ?>">
+                <i class="bi bi-star"></i> Avis clients
+            </a>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('tickets')): ?>
+            <a href="<?= ab_url('admin/index.php?page=tickets') ?>" class="nav-link <?= $currentPage === 'tickets' ? 'active' : '' ?>">
+                <i class="bi bi-life-preserver"></i> Support
+                <?php if ($openTicketsCount > 0): ?><span class="badge bg-danger ms-auto"><?= $openTicketsCount ?></span><?php endif; ?>
+            </a>
+            <?php endif; ?>
 
             <div class="nav-section">Configuration</div>
             <a href="<?= ab_url('admin/index.php?page=services') ?>" class="nav-link <?= $currentPage === 'services' ? 'active' : '' ?>">
@@ -68,6 +101,9 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
             </a>
             <a href="<?= ab_url('admin/index.php?page=categories') ?>" class="nav-link <?= $currentPage === 'categories' ? 'active' : '' ?>">
                 <i class="bi bi-tags"></i> Catégories
+            </a>
+            <a href="<?= ab_url('admin/index.php?page=booking-options') ?>" class="nav-link <?= $currentPage === 'booking-options' ? 'active' : '' ?>">
+                <i class="bi bi-plus-square"></i> Options
             </a>
             <?php if ($isAdmin): ?>
             <a href="<?= ab_url('admin/index.php?page=providers') ?>" class="nav-link <?= $currentPage === 'providers' ? 'active' : '' ?>">
@@ -130,5 +166,13 @@ $primaryColor = ab_setting('primary_color', '#e91e63');
     <?php if (file_exists(__DIR__ . '/pages/' . $currentPage . '.js.php')): ?>
         <?php require __DIR__ . '/pages/' . $currentPage . '.js.php'; ?>
     <?php endif; ?>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('<?= ab_url('admin/sw.js') ?>', { scope: '<?= ab_url('admin/') ?>' })
+                .catch(function(err) { console.warn('SW registration failed:', err); });
+        });
+    }
+    </script>
 </body>
 </html>

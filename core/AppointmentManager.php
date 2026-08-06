@@ -282,17 +282,29 @@ class AppointmentManager {
         $endDatetime = date('Y-m-d H:i:s', strtotime($data['start_datetime']) + ($service['duration'] * 60));
         $hash = ab_generate_hash();
 
+        $needsGuardian = !empty($data['needs_guardian']);
+        $guardianToken = null;
+        $guardianTokenExpires = null;
+        if ($needsGuardian) {
+            $guardianToken = bin2hex(random_bytes(24));
+            $guardianTokenExpires = date('Y-m-d H:i:s', strtotime('+7 days'));
+        }
+
         $this->db->beginTransaction();
         try {
             // Create or update customer
             $customer = $this->db->fetchOne("SELECT id FROM ab_customers WHERE email = ?", [$data['email']]);
             if ($customer) {
                 $customerId = $customer['id'];
-                $this->db->update('ab_customers', [
+                $dobUpdate = [];
+                if (!empty($data['date_of_birth'])) {
+                    $dobUpdate['date_of_birth'] = $data['date_of_birth'];
+                }
+                $this->db->update('ab_customers', array_merge([
                     'first_name' => $data['first_name'],
                     'last_name' => $data['last_name'],
                     'phone' => $data['phone'] ?? '',
-                ], 'id = ?', [$customerId]);
+                ], $dobUpdate), 'id = ?', [$customerId]);
             } else {
                 $customerId = $this->db->insert('ab_customers', [
                     'first_name' => $data['first_name'],
@@ -300,6 +312,7 @@ class AppointmentManager {
                     'email' => $data['email'],
                     'phone' => $data['phone'] ?? '',
                     'notes' => $data['customer_notes'] ?? '',
+                    'date_of_birth' => $data['date_of_birth'] ?? null,
                 ]);
             }
 
@@ -315,6 +328,13 @@ class AppointmentManager {
                 'end_datetime' => $endDatetime,
                 'status' => $status,
                 'notes' => $data['notes'] ?? '',
+                'needs_guardian' => $needsGuardian ? 1 : 0,
+                'guardian_first_name' => $data['guardian_first_name'] ?? null,
+                'guardian_last_name' => $data['guardian_last_name'] ?? null,
+                'guardian_phone' => $data['guardian_phone'] ?? null,
+                'guardian_email' => $data['guardian_email'] ?? null,
+                'guardian_token' => $guardianToken,
+                'guardian_token_expires' => $guardianTokenExpires,
             ]);
 
             // Handle deposit if required
@@ -341,6 +361,28 @@ class AppointmentManager {
                 ];
             }
 
+            // Save selected options inside transaction
+            $savedOptions = [];
+            if (!empty($data['options'])) {
+                $placeholders = implode(',', array_fill(0, count($data['options']), '?'));
+                $validOpts = $this->db->fetchAll(
+                    "SELECT id, name, price_type, price_value FROM ab_booking_options WHERE id IN ($placeholders) AND is_active = 1",
+                    $data['options']
+                );
+                foreach ($validOpts as $opt) {
+                    $optPrice = $opt['price_type'] === 'percentage'
+                        ? round($service['price'] * (float)$opt['price_value'] / 100, 2)
+                        : (float)$opt['price_value'];
+                    $this->db->insert('ab_appointment_options', [
+                        'appointment_id' => $appointmentId,
+                        'option_id'      => $opt['id'],
+                        'option_name'    => $opt['name'],
+                        'option_price'   => $optPrice,
+                    ]);
+                    $savedOptions[] = ['name' => $opt['name'], 'price' => $optPrice];
+                }
+            }
+
             $this->db->commit();
 
             return [
@@ -348,6 +390,8 @@ class AppointmentManager {
                 'hash' => $hash,
                 'status' => $status,
                 'deposit' => $depositInfo,
+                'needs_guardian' => $needsGuardian,
+                'options' => $savedOptions,
             ];
 
         } catch (Exception $e) {
@@ -387,9 +431,86 @@ class AppointmentManager {
             } catch (Exception $e) {
                 error_log('ABAppointments CalDAV delete error: ' . $e->getMessage());
             }
+            // Notify matching waitlist entries that a slot just freed up
+            if (ab_feature_enabled('waitlist')) {
+                try {
+                    (new Waitlist())->notifyForFreedSlot(
+                        $appointment['service_id'],
+                        $appointment['provider_id'],
+                        date('Y-m-d', strtotime($appointment['start_datetime']))
+                    );
+                } catch (Exception $e) {
+                    error_log('ABAppointments waitlist notify error: ' . $e->getMessage());
+                }
+            }
+        } elseif ($status === 'completed') {
+            if (ab_feature_enabled('reviews')) {
+                try {
+                    (new Reviews())->requestForAppointment($appointment);
+                } catch (Exception $e) {
+                    error_log('ABAppointments review request error: ' . $e->getMessage());
+                }
+            }
         }
 
         return true;
+    }
+
+    /**
+     * Reschedule an appointment to a new start date/time (provider/admin action)
+     * Returns ['success' => bool, 'error' => string|null]
+     */
+    public function reschedule(int $appointmentId, string $newStartDatetime): array {
+        $appointment = $this->getAppointment($appointmentId);
+        if (!$appointment) return ['success' => false, 'error' => 'not_found'];
+        if ($appointment['status'] === 'cancelled') return ['success' => false, 'error' => 'cancelled'];
+
+        $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ?", [$appointment['service_id']]);
+        if (!$service) return ['success' => false, 'error' => 'service_not_found'];
+
+        $newEndDatetime = date('Y-m-d H:i:s', strtotime($newStartDatetime) + ($service['duration'] * 60));
+
+        // Check for conflicts with the provider's other appointments
+        $conflict = $this->db->fetchOne(
+            "SELECT id FROM ab_appointments
+             WHERE provider_id = ? AND id != ? AND status NOT IN ('cancelled')
+               AND start_datetime < ? AND end_datetime > ?",
+            [$appointment['provider_id'], $appointmentId, $newEndDatetime, $newStartDatetime]
+        );
+        if ($conflict) return ['success' => false, 'error' => 'conflict'];
+
+        $oldDate = ab_format_date($appointment['start_datetime']);
+        $oldTime = ab_format_time($appointment['start_datetime']);
+
+        $this->db->update('ab_appointments', [
+            'start_datetime' => $newStartDatetime,
+            'end_datetime' => $newEndDatetime,
+        ], 'id = ?', [$appointmentId]);
+
+        $updated = $this->getAppointment($appointmentId);
+        $this->sendRescheduleEmail($updated, $oldDate, $oldTime);
+
+        try {
+            $caldav = new CalDAV();
+            if ($caldav->isEnabledFor($updated['provider_id'])) {
+                $caldav->syncAppointment($appointmentId);
+            }
+        } catch (Exception $e) {
+            error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
+        }
+
+        // The old slot just freed up - notify matching waitlist entries
+        try {
+            (new Waitlist())->notifyForFreedSlot(
+                $appointment['service_id'],
+                $appointment['provider_id'],
+                date('Y-m-d', strtotime($appointment['start_datetime']))
+            );
+        } catch (Exception $e) {
+            error_log('ABAppointments waitlist notify error: ' . $e->getMessage());
+        }
+
+        return ['success' => true];
     }
 
     /**
@@ -412,6 +533,16 @@ class AppointmentManager {
         // Send confirmation email
         $appointment = $this->getAppointment($deposit['appointment_id']);
         if ($appointment) {
+            // Sync to CalDAV
+            try {
+                $caldav = new CalDAV();
+                if ($caldav->isEnabledFor($appointment['provider_id'])) {
+                    $caldav->syncAppointment($appointment['id']);
+                }
+            } catch (Exception $e) {
+                error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
+            }
+
             $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ?", [$appointment['service_id']]);
             $remaining = $service ? $service['price'] - $deposit['amount'] : 0;
 
@@ -532,6 +663,42 @@ class AppointmentManager {
 
         $mailer = new Mailer();
         $customerName = $appointment['customer_first_name'] . ' ' . $appointment['customer_last_name'];
+        $businessName = ab_setting('business_name');
+
+        // Build options summary HTML for emails
+        $appointmentOptions = $this->db->fetchAll(
+            "SELECT option_name, option_price FROM ab_appointment_options WHERE appointment_id = ? ORDER BY id",
+            [$appointmentId]
+        );
+        $optionsHtml = '';
+        $optionsTotal = 0.0;
+        foreach ($appointmentOptions as $ao) {
+            $optionsTotal += (float)$ao['option_price'];
+            $optionsHtml .= '<tr><td style="padding:4px 12px;color:#666;">'
+                . ab_escape($ao['option_name']) . '</td>'
+                . '<td style="padding:4px 12px;text-align:right;">+'
+                . number_format((float)$ao['option_price'], 2, ',', ' ') . ' €</td></tr>';
+        }
+        $totalPrice = (float)$appointment['service_price'] + $optionsTotal;
+        $optionsSummaryHtml = '';
+        if ($optionsTotal > 0) {
+            $optionsSummaryHtml = '<div style="margin:15px 0;padding:12px 15px;background:#f8f9fa;border-radius:6px;border-left:3px solid #e91e63;">'
+                . '<strong>Détail du tarif :</strong>'
+                . '<table style="width:100%;margin-top:8px;">'
+                . '<tr><td style="padding:4px 12px;color:#666;">Prestation</td>'
+                . '<td style="padding:4px 12px;text-align:right;">' . number_format((float)$appointment['service_price'], 2, ',', ' ') . ' €</td></tr>'
+                . $optionsHtml
+                . '<tr style="border-top:1px solid #dee2e6;font-weight:bold;">'
+                . '<td style="padding:8px 12px;">Total</td>'
+                . '<td style="padding:8px 12px;text-align:right;">' . number_format($totalPrice, 2, ',', ' ') . ' €</td></tr>'
+                . '</table></div>';
+        }
+
+        // If guardian required: send guardian-specific emails instead
+        if (!empty($appointment['needs_guardian'])) {
+            $this->sendGuardianNotifications($appointment, $mailer, $customerName, $businessName);
+            return;
+        }
 
         $depositSection = '';
         if ($depositInfo) {
@@ -553,6 +720,9 @@ class AppointmentManager {
                 'business_name' => ab_setting('business_name'),
             ]);
         }
+
+        // Prepend options summary to deposit section
+        $depositSection = $optionsSummaryHtml . $depositSection;
 
         // Send customer email
         $templateSlug = ($status === 'confirmed') ? 'appointment_confirmed' : 'appointment_pending';
@@ -578,6 +748,7 @@ class AppointmentManager {
             'appointment_date' => ab_format_date($appointment['start_datetime']),
             'appointment_time' => ab_format_time($appointment['start_datetime']),
             'admin_url' => ab_url('admin/index.php?page=appointments'),
+            'options_summary' => $optionsSummaryHtml,
         ];
 
         if ($adminEmail) {
@@ -589,6 +760,140 @@ class AppointmentManager {
         if ($providerEmail && $providerEmail !== $adminEmail) {
             $mailer->sendTemplate('admin_new_appointment', $providerEmail, $notifVars);
         }
+    }
+
+    /**
+     * Send guardian-flow notifications (customer, guardian, admin)
+     */
+    private function sendGuardianNotifications(array $appointment, Mailer $mailer, string $customerName, string $businessName): void {
+        $apptDate    = ab_format_date($appointment['start_datetime']);
+        $apptTime    = ab_format_time($appointment['start_datetime']);
+        $guardianName = $appointment['guardian_first_name'] . ' ' . $appointment['guardian_last_name'];
+        $confirmUrl  = ab_url('public/guardian-confirm.php?token=' . $appointment['guardian_token']);
+        $adminUrl    = ab_url('admin/index.php?page=appointments');
+
+        // 1. Email to customer: awaiting guardian
+        $customerHtml = '<h2 style="color:#333;">Votre rendez-vous est en attente de validation</h2>'
+            . '<p>Bonjour <strong>' . ab_escape($customerName) . '</strong>,</p>'
+            . '<p>Votre demande de rendez-vous a bien été enregistrée :</p>'
+            . '<table style="width:100%;border-collapse:collapse;margin:15px 0;font-size:15px;">'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;width:40%;">Prestation</td><td style="padding:8px 12px;font-weight:bold;">' . ab_escape($appointment['service_name']) . '</td></tr>'
+            . '<tr><td style="padding:8px 12px;color:#666;">Date</td><td style="padding:8px 12px;">' . $apptDate . '</td></tr>'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Heure</td><td style="padding:8px 12px;">' . $apptTime . '</td></tr>'
+            . '</table>'
+            . '<p>Un email de confirmation a été envoyé à votre accompagnateur <strong>' . ab_escape($guardianName) . '</strong> '
+            . '(' . ab_escape($appointment['guardian_email']) . '). '
+            . 'Votre rendez-vous sera confirmé dès que celui-ci aura validé sa présence.</p>'
+            . '<p style="color:#888;font-size:0.9em;">Si vous n\'avez pas reçu de confirmation dans 48h, contactez-nous directement.</p>';
+
+        $mailer->send($appointment['customer_email'], 'Rendez-vous en attente de validation – ' . $businessName, $customerHtml, $customerName);
+
+        // 2. Email to guardian: please confirm
+        $guardianHtml = '<h2 style="color:#333;">Confirmation requise : accompagnement de ' . ab_escape($appointment['customer_first_name']) . '</h2>'
+            . '<p>Bonjour <strong>' . ab_escape($guardianName) . '</strong>,</p>'
+            . '<p><strong>' . ab_escape($customerName) . '</strong> souhaite prendre rendez-vous chez <strong>' . ab_escape($businessName) . '</strong> et vous a désigné(e) comme accompagnateur(trice).</p>'
+            . '<table style="width:100%;border-collapse:collapse;margin:15px 0;font-size:15px;">'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;width:40%;">Prestation</td><td style="padding:8px 12px;font-weight:bold;">' . ab_escape($appointment['service_name']) . '</td></tr>'
+            . '<tr><td style="padding:8px 12px;color:#666;">Date</td><td style="padding:8px 12px;">' . $apptDate . '</td></tr>'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Heure</td><td style="padding:8px 12px;">' . $apptTime . '</td></tr>'
+            . '<tr><td style="padding:8px 12px;color:#666;">Durée</td><td style="padding:8px 12px;">' . $appointment['service_duration'] . ' minutes</td></tr>'
+            . '</table>'
+            . '<p>Votre <strong>présence physique</strong> au rendez-vous est requise en tant qu\'accompagnateur(trice). '
+            . 'En cliquant sur le bouton ci-dessous, vous confirmez que vous serez présent(e).</p>'
+            . '<div style="text-align:center;margin:30px 0;">'
+            . '<a href="' . $confirmUrl . '" style="background:#28a745;color:#ffffff;padding:15px 30px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:1.1em;display:inline-block;">✔&nbsp; Je confirme ma présence</a>'
+            . '</div>'
+            . '<p style="color:#888;font-size:0.85em;">Si vous n\'êtes pas concerné(e) par ce message, ignorez-le. Ce lien est valable 7 jours.</p>';
+
+        $mailer->send($appointment['guardian_email'], 'Confirmation requise – accompagnement de ' . $appointment['customer_first_name'] . ' chez ' . $businessName, $guardianHtml, $guardianName);
+
+        // 3. Email to admin: new booking pending guardian
+        $adminEmail = ab_setting('business_email');
+        if ($adminEmail) {
+            $adminHtml = '<h2 style="color:#e65100;">⏳ Nouveau RDV – accord adulte requis</h2>'
+                . '<p>Un nouveau rendez-vous a été pris et nécessite la validation d\'un accompagnateur adulte.</p>'
+                . '<table style="width:100%;border-collapse:collapse;margin:15px 0;font-size:15px;">'
+                . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;width:40%;">Client</td><td style="padding:8px 12px;">' . ab_escape($customerName) . '</td></tr>'
+                . '<tr><td style="padding:8px 12px;color:#666;">Email client</td><td style="padding:8px 12px;">' . ab_escape($appointment['customer_email']) . '</td></tr>'
+                . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Prestation</td><td style="padding:8px 12px;font-weight:bold;">' . ab_escape($appointment['service_name']) . '</td></tr>'
+                . '<tr><td style="padding:8px 12px;color:#666;">Date / Heure</td><td style="padding:8px 12px;">' . $apptDate . ' à ' . $apptTime . '</td></tr>'
+                . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Accompagnateur</td><td style="padding:8px 12px;">' . ab_escape($guardianName) . '<br><small style="color:#888;">' . ab_escape($appointment['guardian_email']) . ' – ' . ab_escape($appointment['guardian_phone']) . '</small></td></tr>'
+                . '<tr><td style="padding:8px 12px;color:#666;">Accord adulte</td><td style="padding:8px 12px;color:#e65100;font-weight:bold;">⏳ En attente</td></tr>'
+                . '</table>'
+                . '<p><a href="' . $adminUrl . '" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Voir les rendez-vous</a></p>';
+
+            $mailer->send($adminEmail, '⏳ Accord adulte requis – ' . $customerName . ' (' . $businessName . ')', $adminHtml);
+        }
+    }
+
+    /**
+     * Confirm a guardian token and notify admin
+     * Returns the appointment data on success, null on failure
+     */
+    public function confirmByGuardianToken(string $token): ?array {
+        $appointment = $this->db->fetchOne(
+            "SELECT a.*,
+                    c.first_name as customer_first_name, c.last_name as customer_last_name,
+                    c.email as customer_email,
+                    s.name as service_name, s.duration as service_duration,
+                    u.first_name as provider_first_name, u.last_name as provider_last_name
+             FROM ab_appointments a
+             JOIN ab_customers c ON a.customer_id = c.id
+             JOIN ab_services s ON a.service_id = s.id
+             JOIN ab_users u ON a.provider_id = u.id
+             WHERE a.guardian_token = ?
+               AND a.guardian_token_expires > NOW()
+               AND a.guardian_confirmed_at IS NULL
+               AND a.status NOT IN ('cancelled')",
+            [$token]
+        );
+
+        if (!$appointment) return null;
+
+        // Mark guardian confirmed, clear token
+        $this->db->update('ab_appointments',
+            [
+                'guardian_confirmed_at' => date('Y-m-d H:i:s'),
+                'guardian_token' => null,
+                'guardian_token_expires' => null,
+            ],
+            'id = ?',
+            [$appointment['id']]
+        );
+
+        // Notify admin
+        $this->sendGuardianConfirmedNotification($appointment);
+
+        return $appointment;
+    }
+
+    /**
+     * Send admin notification when guardian confirms
+     */
+    private function sendGuardianConfirmedNotification(array $appointment): void {
+        $adminEmail = ab_setting('business_email');
+        if (!$adminEmail) return;
+
+        $mailer = new Mailer();
+        $businessName = ab_setting('business_name');
+        $customerName = $appointment['customer_first_name'] . ' ' . $appointment['customer_last_name'];
+        $guardianName = $appointment['guardian_first_name'] . ' ' . $appointment['guardian_last_name'];
+        $apptDate = ab_format_date($appointment['start_datetime']);
+        $apptTime = ab_format_time($appointment['start_datetime']);
+        $adminUrl = ab_url('admin/index.php?page=appointments');
+
+        $html = '<h2 style="color:#28a745;">✅ Accord adulte confirmé</h2>'
+            . '<p>L\'accompagnateur a confirmé sa présence pour le rendez-vous suivant :</p>'
+            . '<table style="width:100%;border-collapse:collapse;margin:15px 0;font-size:15px;">'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;width:40%;">Client</td><td style="padding:8px 12px;">' . ab_escape($customerName) . '</td></tr>'
+            . '<tr><td style="padding:8px 12px;color:#666;">Prestation</td><td style="padding:8px 12px;font-weight:bold;">' . ab_escape($appointment['service_name']) . '</td></tr>'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Date / Heure</td><td style="padding:8px 12px;">' . $apptDate . ' à ' . $apptTime . '</td></tr>'
+            . '<tr><td style="padding:8px 12px;color:#666;">Accompagnateur</td><td style="padding:8px 12px;">' . ab_escape($guardianName) . '</td></tr>'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Accord adulte</td><td style="padding:8px 12px;color:#28a745;font-weight:bold;">✅ Confirmé</td></tr>'
+            . '</table>'
+            . '<p><a href="' . $adminUrl . '" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Gérer le rendez-vous</a></p>';
+
+        $mailer->send($adminEmail, '✅ Accord adulte confirmé – ' . $customerName . ' (' . $businessName . ')', $html);
     }
 
     private function sendStatusEmail(array $appointment, string $template): void {
@@ -611,5 +916,21 @@ class AppointmentManager {
         }
 
         $mailer->sendTemplate($template, $appointment['customer_email'], $vars);
+    }
+
+    private function sendRescheduleEmail(array $appointment, string $oldDate, string $oldTime): void {
+        $mailer = new Mailer();
+        $customerName = $appointment['customer_first_name'] . ' ' . $appointment['customer_last_name'];
+
+        $mailer->sendTemplate('appointment_modified', $appointment['customer_email'], [
+            'customer_name' => $customerName,
+            'service_name' => $appointment['service_name'],
+            'old_date' => $oldDate,
+            'old_time' => $oldTime,
+            'appointment_date' => ab_format_date($appointment['start_datetime']),
+            'appointment_time' => ab_format_time($appointment['start_datetime']),
+            'business_name' => ab_setting('business_name'),
+            'manage_url' => ab_url('manage/' . $appointment['hash']),
+        ]);
     }
 }

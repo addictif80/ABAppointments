@@ -38,6 +38,9 @@ require_once __DIR__ . '/Settings.php';
 require_once __DIR__ . '/AppointmentManager.php';
 require_once __DIR__ . '/GoogleCalendar.php';
 require_once __DIR__ . '/CalDAV.php';
+require_once __DIR__ . '/Waitlist.php';
+require_once __DIR__ . '/Reviews.php';
+require_once __DIR__ . '/Tickets.php';
 
 /**
  * Helper functions
@@ -79,6 +82,23 @@ function ab_safe_html(?string $str): string {
 
 function ab_setting(string $key, string $default = ''): string {
     return Settings::get($key, $default);
+}
+
+// Modules that can be turned on/off from the "Fonctionnalités" admin settings tab.
+// Key => the ab_setting() key holding its enabled flag ('1' by default so existing
+// installs keep working exactly as before until an admin opts to disable something).
+const AB_TOGGLEABLE_FEATURES = [
+    'waitlist' => 'feature_waitlist_enabled',
+    'reviews' => 'feature_reviews_enabled',
+    'tickets' => 'feature_tickets_enabled',
+    'deposits' => 'feature_deposits_enabled',
+    'google_calendar' => 'feature_google_calendar_enabled',
+];
+
+function ab_feature_enabled(string $feature): bool {
+    $key = AB_TOGGLEABLE_FEATURES[$feature] ?? null;
+    if (!$key) return true;
+    return ab_setting($key, '1') === '1';
 }
 
 function ab_format_date(string $datetime): string {
@@ -125,4 +145,17 @@ function ab_json(array $data, int $code = 200): void {
 
 function ab_generate_hash(): string {
     return bin2hex(random_bytes(16));
+}
+
+function ab_format_dob(?string $date): string {
+    if (!$date) return '';
+    $p = explode('-', $date);
+    return count($p) === 3 ? $p[2].'.'.$p[1].'.'.$p[0] : $date;
+}
+
+function ab_parse_dob(string $dob): ?string {
+    $dob = trim($dob);
+    if (!preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $dob, $m)) return null;
+    if (!checkdate((int)$m[2], (int)$m[1], (int)$m[3])) return null;
+    return $m[3].'-'.$m[2].'-'.$m[1];
 }

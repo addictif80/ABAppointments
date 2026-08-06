@@ -1,6 +1,8 @@
 config/config.php
 assets/uploads/*
 !assets/uploads/.gitkeep
+storage/ticket_attachments/*
+!storage/ticket_attachments/.gitkeep
 *.log
 .env
 vendor/
