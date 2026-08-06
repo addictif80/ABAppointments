@@ -198,6 +198,41 @@ if (!empty($_SESSION['customer_id'])) {
         .category-label { font-size: 0.85rem; color: var(--ab-primary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; padding-left: 5px; }
         .category-label:first-child { margin-top: 0; }
 
+        .card {
+            border: none;
+            box-shadow: 0 4px 28px rgba(0,0,0,0.08);
+            border-radius: 18px;
+            background: #fff;
+        }
+        .booking-step.active .step-card {
+            animation: slideUp 0.3s cubic-bezier(0.4,0,0.2,1) both;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .step-card { padding: 26px; }
+
+        /* ── Step title ── */
+        .step-title {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+        }
+        .step-title-icon {
+            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--p), var(--s));
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 1.05rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.16);
+        }
+        .step-title h4 { font-size: 1.08rem; font-weight: 700; color: #18182b; margin: 0; }
+
+        /* ── Category label ── */
+        .category-label {
+            font-size: 0.67rem; color: var(--p); font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            margin: 18px 0 8px; padding-left: 3px;
+        }
+
         /* ── Service cards ── */
         .service-card {
             cursor: pointer; transition: all 0.22s cubic-bezier(0.4,0,0.2,1);
