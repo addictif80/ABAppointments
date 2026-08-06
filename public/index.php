@@ -1140,47 +1140,14 @@ function renderCalendar() {
     let html = dayNames.map(d => '<div class="date-cell disabled"><div class="day-name">' + d + '</div></div>').join('');
     for (let i = 0; i < firstDay.getDay(); i++) html += '<div class="date-cell disabled"></div>';
 
-        document.getElementById('date-picker').innerHTML = html;
-        document.querySelectorAll('.date-cell[data-date]').forEach(cell => {
-            cell.addEventListener('click', () => selectDate(cell.dataset.date));
-        });
-
-        loadAvailableDays();
-    }
-
-    function loadAvailableDays() {
-        if (!booking.serviceId || !booking.providerId) return;
-
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth() + 1;
-        const cacheKey = year + '-' + month + '-' + booking.serviceId + '-' + booking.providerId;
-        const datePicker = document.getElementById('date-picker');
-
-        if (availableDaysCache[cacheKey] !== undefined) {
-            applyAvailableDays(availableDaysCache[cacheKey]);
-            return;
-        }
-
-        datePicker.classList.add('loading-days');
-        fetch(API_URL + '?route=available-days&service_id=' + booking.serviceId + '&provider_id=' + booking.providerId + '&year=' + year + '&month=' + month)
-            .then(r => r.json())
-            .then(data => {
-                availableDaysCache[cacheKey] = data.days || [];
-                applyAvailableDays(availableDaysCache[cacheKey]);
-            })
-            .catch(() => { /* on error, leave all days clickable */ })
-            .finally(() => { datePicker.classList.remove('loading-days'); });
-    }
-
-    function applyAvailableDays(availableDays) {
-        document.querySelectorAll('.date-cell[data-date]').forEach(cell => {
-            if (cell.classList.contains('disabled') || cell.classList.contains('selected')) return;
-            if (availableDays.includes(cell.dataset.date)) {
-                cell.classList.remove('no-slots');
-            } else {
-                cell.classList.add('no-slots');
-            }
-        });
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+        const date = new Date(year, month, d);
+        const dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+        const isPast = date < today;
+        const isToday = date.getTime() === today.getTime();
+        const selected = booking.date === dateStr;
+        const classes = ['date-cell', isPast ? 'disabled' : '', isToday ? 'today' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
+        html += '<div class="' + classes + '" data-date="' + dateStr + '"><div class="day-num">' + d + '</div></div>';
     }
 
     document.getElementById('date-picker').innerHTML = html;
