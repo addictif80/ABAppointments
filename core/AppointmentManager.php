@@ -533,6 +533,16 @@ class AppointmentManager {
         // Send confirmation email
         $appointment = $this->getAppointment($deposit['appointment_id']);
         if ($appointment) {
+            // Sync to CalDAV
+            try {
+                $caldav = new CalDAV();
+                if ($caldav->isEnabledFor($appointment['provider_id'])) {
+                    $caldav->syncAppointment($appointment['id']);
+                }
+            } catch (Exception $e) {
+                error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
+            }
+
             $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ?", [$appointment['service_id']]);
             $remaining = $service ? $service['price'] - $deposit['amount'] : 0;
 
