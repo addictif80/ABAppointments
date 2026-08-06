@@ -162,40 +162,40 @@ if (!empty($_SESSION['customer_id'])) {
         /* ── Cards ── */
         .booking-step { display: none; }
         .booking-step.active { display: block; }
-        .card {
-            border: none;
-            box-shadow: 0 4px 28px rgba(0,0,0,0.08);
-            border-radius: 18px;
-            background: #fff;
-        }
-        .booking-step.active .step-card {
-            animation: slideUp 0.3s cubic-bezier(0.4,0,0.2,1) both;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        .step-card { padding: 26px; }
-
-        /* ── Step title ── */
-        .step-title {
-            display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
-        }
-        .step-title-icon {
-            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
-            background: linear-gradient(135deg, var(--p), var(--s));
-            display: flex; align-items: center; justify-content: center;
-            color: #fff; font-size: 1.05rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.16);
-        }
-        .step-title h4 { font-size: 1.08rem; font-weight: 700; color: #18182b; margin: 0; }
-
-        /* ── Category label ── */
-        .category-label {
-            font-size: 0.67rem; color: var(--p); font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.08em;
-            margin: 18px 0 8px; padding-left: 3px;
-        }
+        .card { border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-radius: 12px; }
+        .service-card { cursor: pointer; transition: all 0.2s; border: 2px solid transparent !important; }
+        .service-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+        .service-card.selected { border-color: var(--ab-primary) !important; background: rgba(233,30,99,0.03); }
+        .service-color { width: 6px; border-radius: 12px 0 0 12px; position: absolute; left: 0; top: 0; bottom: 0; }
+        .provider-card { cursor: pointer; transition: all 0.2s; border: 2px solid transparent !important; text-align: center; padding: 20px; }
+        .provider-card:hover { border-color: var(--ab-primary) !important; }
+        .provider-card.selected { border-color: var(--ab-primary) !important; background: rgba(233,30,99,0.03); }
+        .provider-avatar { width: 60px; height: 60px; border-radius: 50%; background: var(--ab-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 10px; }
+        .date-picker { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .date-cell { text-align: center; padding: 10px 5px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .date-cell:hover { background: rgba(233,30,99,0.1); }
+        .date-cell.selected { background: var(--ab-primary); color: #fff; }
+        .date-cell.disabled { opacity: 0.3; pointer-events: none; }
+        .date-cell.no-slots { color: #c0c0c0; pointer-events: none; }
+        .date-cell.no-slots .day-num { text-decoration: line-through; }
+        .date-picker.loading-days .date-cell[data-date]:not(.disabled) { opacity: 0.5; }
+        .date-cell .day-name { font-size: 0.7rem; text-transform: uppercase; color: #999; }
+        .date-cell.selected .day-name { color: rgba(255,255,255,0.8); }
+        .date-cell .day-num { font-size: 1.1rem; font-weight: 600; }
+        .time-slot { display: inline-block; padding: 10px 18px; margin: 4px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+        .time-slot:hover { border-color: var(--ab-primary); color: var(--ab-primary); }
+        .time-slot.selected { background: var(--ab-primary); border-color: var(--ab-primary); color: #fff; }
+        .btn-ab { background: var(--ab-primary); border: none; color: #fff; padding: 12px 30px; border-radius: 8px; font-weight: 600; }
+        .btn-ab:hover { background: color-mix(in srgb, var(--ab-primary) 85%, black); color: #fff; }
+        .btn-ab-outline { border: 2px solid var(--ab-primary); color: var(--ab-primary); background: transparent; padding: 10px 25px; border-radius: 8px; }
+        .btn-ab-outline:hover { background: var(--ab-primary); color: #fff; }
+        .summary-table td { padding: 8px 12px; }
+        .summary-table .label { color: #666; font-weight: 500; }
+        .deposit-info { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-top: 15px; }
+        .month-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .month-nav h5 { margin: 0; }
+        .loading-spinner { text-align: center; padding: 40px; color: #999; }
+        .category-label { font-size: 0.85rem; color: var(--ab-primary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; padding-left: 5px; }
         .category-label:first-child { margin-top: 0; }
 
         /* ── Service cards ── */
@@ -916,20 +916,42 @@ if (!empty($_SESSION['customer_id'])) {
 </div>
 <?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-function openWaitlistModal() {
-    const modalEl = document.getElementById('waitlistModal');
-    const alertEl = document.getElementById('waitlist-alert');
-    alertEl.classList.add('d-none');
-    document.getElementById('waitlist-form').reset();
-    const startInput = document.querySelector('#waitlist-form [name="desired_date_start"]');
-    const endInput = document.querySelector('#waitlist-form [name="desired_date_end"]');
-    if (booking.date) {
-        startInput.value = booking.date;
-        const endDate = new Date(booking.date);
-        endDate.setDate(endDate.getDate() + 14);
-        endInput.value = endDate.toISOString().slice(0, 10);
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if ($modalEnabled && !empty($modalMessage)): ?>
+    <script>
+    (function() {
+        const maxViews = <?= $modalMaxViews ?>;
+        const msgHash = '<?= md5($modalMessage) ?>';
+        const storageKey = 'ab_modal_' + msgHash;
+        // Clean old modal keys when message changes
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('ab_modal_') && k !== storageKey) localStorage.removeItem(k);
+        }
+        let views = parseInt(localStorage.getItem(storageKey) || '0', 10);
+        if (views < maxViews) {
+            localStorage.setItem(storageKey, String(views + 1));
+            new bootstrap.Modal(document.getElementById('importantModal')).show();
+        }
+    })();
+    </script>
+    <?php endif; ?>
+    <script>
+    const API_URL = '<?= ab_url('api/index.php') ?>';
+    let booking = { serviceId: null, providerId: null, date: null, time: null, serviceName: '', providerName: '', duration: 0, price: 0, deposit: false, depositType: '', depositAmount: 0 };
+    let currentMonth = new Date();
+    let availableDaysCache = {};
+
+    // Step navigation
+    function goToStep(n) {
+        document.querySelectorAll('.booking-step').forEach(s => s.classList.remove('active'));
+        document.getElementById('step-' + n).classList.add('active');
+        document.querySelectorAll('.step-dot').forEach(d => {
+            const step = parseInt(d.dataset.step);
+            d.classList.toggle('active', step === n);
+            d.classList.toggle('done', step < n);
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     new bootstrap.Modal(modalEl).show();
 }
@@ -1112,14 +1134,47 @@ function renderCalendar() {
     let html = dayNames.map(d => '<div class="date-cell disabled"><div class="day-name">' + d + '</div></div>').join('');
     for (let i = 0; i < firstDay.getDay(); i++) html += '<div class="date-cell disabled"></div>';
 
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-        const date = new Date(year, month, d);
-        const dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-        const isPast = date < today;
-        const isToday = date.getTime() === today.getTime();
-        const selected = booking.date === dateStr;
-        const classes = ['date-cell', isPast ? 'disabled' : '', isToday ? 'today' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
-        html += '<div class="' + classes + '" data-date="' + dateStr + '"><div class="day-num">' + d + '</div></div>';
+        document.getElementById('date-picker').innerHTML = html;
+        document.querySelectorAll('.date-cell[data-date]').forEach(cell => {
+            cell.addEventListener('click', () => selectDate(cell.dataset.date));
+        });
+
+        loadAvailableDays();
+    }
+
+    function loadAvailableDays() {
+        if (!booking.serviceId || !booking.providerId) return;
+
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1;
+        const cacheKey = year + '-' + month + '-' + booking.serviceId + '-' + booking.providerId;
+        const datePicker = document.getElementById('date-picker');
+
+        if (availableDaysCache[cacheKey] !== undefined) {
+            applyAvailableDays(availableDaysCache[cacheKey]);
+            return;
+        }
+
+        datePicker.classList.add('loading-days');
+        fetch(API_URL + '?route=available-days&service_id=' + booking.serviceId + '&provider_id=' + booking.providerId + '&year=' + year + '&month=' + month)
+            .then(r => r.json())
+            .then(data => {
+                availableDaysCache[cacheKey] = data.days || [];
+                applyAvailableDays(availableDaysCache[cacheKey]);
+            })
+            .catch(() => { /* on error, leave all days clickable */ })
+            .finally(() => { datePicker.classList.remove('loading-days'); });
+    }
+
+    function applyAvailableDays(availableDays) {
+        document.querySelectorAll('.date-cell[data-date]').forEach(cell => {
+            if (cell.classList.contains('disabled') || cell.classList.contains('selected')) return;
+            if (availableDays.includes(cell.dataset.date)) {
+                cell.classList.remove('no-slots');
+            } else {
+                cell.classList.add('no-slots');
+            }
+        });
     }
 
     document.getElementById('date-picker').innerHTML = html;

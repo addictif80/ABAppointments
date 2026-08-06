@@ -19,15 +19,6 @@ $manager = new AppointmentManager();
 
 try {
     switch ($route) {
-        case 'check-customer':
-            $email = trim($_GET['email'] ?? '');
-            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                ab_json(['exists' => false, 'has_dob' => false]);
-            }
-            $c = $db->fetchOne("SELECT id, date_of_birth FROM ab_customers WHERE email = ?", [$email]);
-            ab_json(['exists' => (bool)$c, 'has_dob' => !empty($c['date_of_birth'])]);
-            break;
-
         case 'available-days':
             $serviceId  = (int)($_GET['service_id'] ?? 0);
             $providerId = (int)($_GET['provider_id'] ?? 0);
