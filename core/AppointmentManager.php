@@ -411,6 +411,7 @@ class AppointmentManager {
 
         if ($status === 'confirmed') {
             $this->sendStatusEmail($appointment, 'appointment_confirmed');
+            $this->notifyStaff($appointment, 'Rendez-vous confirmé', $this->staffChangeEmailHtml($appointment, 'Rendez-vous confirmé'));
             // Sync to CalDAV
             try {
                 $caldav = new CalDAV();
@@ -422,6 +423,7 @@ class AppointmentManager {
             }
         } elseif ($status === 'cancelled') {
             $this->sendStatusEmail($appointment, 'appointment_cancelled');
+            $this->notifyStaff($appointment, 'Rendez-vous annulé', $this->staffChangeEmailHtml($appointment, 'Rendez-vous annulé'));
             // Remove from CalDAV
             try {
                 $caldav = new CalDAV();
@@ -465,6 +467,66 @@ class AppointmentManager {
         if (!$appointment) return ['success' => false, 'error' => 'not_found'];
         if ($appointment['status'] === 'cancelled') return ['success' => false, 'error' => 'cancelled'];
 
+        $result = $this->applyReschedule($appointment, $newStartDatetime);
+        if (!$result['success']) return $result;
+
+        $this->notifyStaff($result['appointment'], 'Rendez-vous modifié', $this->staffChangeEmailHtml(
+            $result['appointment'],
+            'Rendez-vous modifié',
+            '<tr><td style="padding:8px 12px;color:#666;">Ancienne date</td><td style="padding:8px 12px;">' . $result['old_date'] . ' à ' . $result['old_time'] . '</td></tr>'
+        ));
+
+        return ['success' => true];
+    }
+
+    /**
+     * Reschedule an appointment by its public hash (customer self-service action)
+     * Returns ['success' => bool, 'error' => string|null]
+     */
+    public function rescheduleByHash(string $hash, string $newStartDatetime): array {
+        $appointment = $this->getByHash($hash);
+        if (!$appointment) return ['success' => false, 'error' => 'not_found'];
+        if (!in_array($appointment['status'], ['pending', 'confirmed'], true)) {
+            return ['success' => false, 'error' => 'not_allowed'];
+        }
+        if (Settings::get('allow_customer_cancel', '1') !== '1') {
+            return ['success' => false, 'error' => 'not_allowed'];
+        }
+
+        $limitSeconds = (int) Settings::get('cancellation_limit', '1440') * 60;
+        if (strtotime($appointment['start_datetime']) - time() < $limitSeconds) {
+            return ['success' => false, 'error' => 'too_late'];
+        }
+        if (strtotime($newStartDatetime) - time() < $limitSeconds) {
+            return ['success' => false, 'error' => 'too_late'];
+        }
+
+        // Make sure the requested slot is actually offered (working hours, breaks, holidays, advance window)
+        $date = date('Y-m-d', strtotime($newStartDatetime));
+        $requestedTime = date('H:i', strtotime($newStartDatetime));
+        $slots = $this->getAvailableSlots($appointment['provider_id'], $appointment['service_id'], $date);
+        if (!in_array($requestedTime, $slots, true) && $newStartDatetime !== $appointment['start_datetime']) {
+            return ['success' => false, 'error' => 'slot_unavailable'];
+        }
+
+        $result = $this->applyReschedule($appointment, $newStartDatetime);
+        if (!$result['success']) return $result;
+
+        $this->notifyStaff($result['appointment'], 'Rendez-vous modifié par le client', $this->staffChangeEmailHtml(
+            $result['appointment'],
+            'Rendez-vous modifié par le client',
+            '<tr><td style="padding:8px 12px;color:#666;">Ancienne date</td><td style="padding:8px 12px;">' . $result['old_date'] . ' à ' . $result['old_time'] . '</td></tr>'
+        ));
+
+        return ['success' => true];
+    }
+
+    /**
+     * Shared core logic to move an appointment to a new start date/time.
+     * Checks for provider conflicts, persists the change, sends the customer email
+     * and syncs CalDAV. Does not notify staff - callers add their own context.
+     */
+    private function applyReschedule(array $appointment, string $newStartDatetime): array {
         $service = $this->db->fetchOne("SELECT * FROM ab_services WHERE id = ?", [$appointment['service_id']]);
         if (!$service) return ['success' => false, 'error' => 'service_not_found'];
 
@@ -475,7 +537,7 @@ class AppointmentManager {
             "SELECT id FROM ab_appointments
              WHERE provider_id = ? AND id != ? AND status NOT IN ('cancelled')
                AND start_datetime < ? AND end_datetime > ?",
-            [$appointment['provider_id'], $appointmentId, $newEndDatetime, $newStartDatetime]
+            [$appointment['provider_id'], $appointment['id'], $newEndDatetime, $newStartDatetime]
         );
         if ($conflict) return ['success' => false, 'error' => 'conflict'];
 
@@ -485,15 +547,15 @@ class AppointmentManager {
         $this->db->update('ab_appointments', [
             'start_datetime' => $newStartDatetime,
             'end_datetime' => $newEndDatetime,
-        ], 'id = ?', [$appointmentId]);
+        ], 'id = ?', [$appointment['id']]);
 
-        $updated = $this->getAppointment($appointmentId);
+        $updated = $this->getAppointment($appointment['id']);
         $this->sendRescheduleEmail($updated, $oldDate, $oldTime);
 
         try {
             $caldav = new CalDAV();
             if ($caldav->isEnabledFor($updated['provider_id'])) {
-                $caldav->syncAppointment($appointmentId);
+                $caldav->syncAppointment($appointment['id']);
             }
         } catch (Exception $e) {
             error_log('ABAppointments CalDAV sync error: ' . $e->getMessage());
@@ -510,7 +572,73 @@ class AppointmentManager {
             error_log('ABAppointments waitlist notify error: ' . $e->getMessage());
         }
 
-        return ['success' => true];
+        return ['success' => true, 'appointment' => $updated, 'old_date' => $oldDate, 'old_time' => $oldTime];
+    }
+
+    /**
+     * Delete an appointment permanently (provider/admin action).
+     * Removes it from CalDAV, notifies the customer and staff, then deletes the row.
+     */
+    public function deleteAppointment(int $appointmentId): bool {
+        $appointment = $this->getAppointment($appointmentId);
+        if (!$appointment) return false;
+
+        try {
+            $caldav = new CalDAV();
+            if ($caldav->isEnabledFor($appointment['provider_id'])) {
+                $caldav->deleteEvent($appointmentId);
+            }
+        } catch (Exception $e) {
+            error_log('ABAppointments CalDAV delete error: ' . $e->getMessage());
+        }
+
+        if ($appointment['status'] !== 'cancelled') {
+            $this->sendStatusEmail($appointment, 'appointment_cancelled');
+        }
+        $this->notifyStaff($appointment, 'Rendez-vous supprimé', $this->staffChangeEmailHtml(
+            $appointment,
+            'Rendez-vous supprimé',
+            '',
+            ab_url('admin/index.php?page=appointments')
+        ));
+
+        $this->db->delete('ab_appointments', 'id = ?', [$appointmentId]);
+
+        return true;
+    }
+
+    /**
+     * Send a notification email to the admin and the provider about an appointment change.
+     * Skips the provider send when its address matches the admin's (avoids a duplicate).
+     */
+    private function notifyStaff(array $appointment, string $subject, string $bodyHtml): void {
+        $mailer = new Mailer();
+        $adminEmail = ab_setting('business_email');
+        $providerEmail = $appointment['provider_email'] ?? '';
+
+        if ($adminEmail) {
+            $mailer->send($adminEmail, $subject, $bodyHtml);
+        }
+        if ($providerEmail && $providerEmail !== $adminEmail) {
+            $mailer->send($providerEmail, $subject, $bodyHtml);
+        }
+    }
+
+    /**
+     * Build the shared HTML body used for admin/provider change notifications.
+     */
+    private function staffChangeEmailHtml(array $appointment, string $title, string $extraRows = '', ?string $adminUrl = null): string {
+        $customerName = $appointment['customer_first_name'] . ' ' . $appointment['customer_last_name'];
+        $adminUrl = $adminUrl ?? ab_url('admin/index.php?page=appointments&action=view&id=' . $appointment['id']);
+
+        return '<h2 style="color:#333;">' . ab_escape($title) . '</h2>'
+            . '<table style="width:100%;border-collapse:collapse;margin:15px 0;font-size:15px;">'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;width:40%;">Client</td><td style="padding:8px 12px;">' . ab_escape($customerName) . '</td></tr>'
+            . '<tr><td style="padding:8px 12px;color:#666;">Prestation</td><td style="padding:8px 12px;font-weight:bold;">' . ab_escape($appointment['service_name']) . '</td></tr>'
+            . '<tr style="background:#f9f9f9;"><td style="padding:8px 12px;color:#666;">Date / Heure</td><td style="padding:8px 12px;">' . ab_format_date($appointment['start_datetime']) . ' à ' . ab_format_time($appointment['start_datetime']) . '</td></tr>'
+            . $extraRows
+            . '</table>'
+            . '<p><a href="' . $adminUrl . '" style="background:#e91e63;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Voir dans l\'administration</a></p>';
     }
 
     /**
