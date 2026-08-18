@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'break_start' => !empty($_POST['break_start'][$d]) ? $_POST['break_start'][$d] : null,
                 'break_end' => !empty($_POST['break_end'][$d]) ? $_POST['break_end'][$d] : null,
                 'is_active' => 1,
+                'single_appointment_per_day' => isset($_POST['single'][$d]) ? 1 : 0,
             ];
             $db->insert('ab_working_hours', $data);
         }
@@ -64,7 +65,7 @@ $isFirstTime = empty($hoursMap);
             <?= Auth::csrfField() ?>
             <div class="table-responsive">
                 <table class="table">
-                    <thead><tr><th>Jour</th><th>Actif</th><th>Début</th><th>Fin</th><th>Pause début</th><th>Pause fin</th></tr></thead>
+                    <thead><tr><th>Jour</th><th>Actif</th><th>Début</th><th>Fin</th><th>Pause début</th><th>Pause fin</th><th>1 seul RDV ce jour</th></tr></thead>
                     <tbody>
                     <?php for ($d = 0; $d < 7; $d++): $h = $hoursMap[$d] ?? null; ?>
                     <tr>
@@ -80,6 +81,7 @@ $isFirstTime = empty($hoursMap);
                         <td><input type="time" name="end[<?= $d ?>]" class="form-control form-control-sm" value="<?= $h['end_time'] ?? '18:00' ?>" step="900"></td>
                         <td><input type="time" name="break_start[<?= $d ?>]" class="form-control form-control-sm" value="<?= $h['break_start'] ?? '12:00' ?>" step="900"></td>
                         <td><input type="time" name="break_end[<?= $d ?>]" class="form-control form-control-sm" value="<?= $h['break_end'] ?? '13:00' ?>" step="900"></td>
+                        <td class="text-center"><input type="checkbox" name="single[<?= $d ?>]" class="form-check-input" title="Un seul rendez-vous pourra être réservé ce jour-là, quelle que soit la durée." <?= ($h && $h['single_appointment_per_day']) ? 'checked' : '' ?>></td>
                     </tr>
                     <?php endfor; ?>
                     </tbody>

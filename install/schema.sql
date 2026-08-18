@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS `ab_working_hours` (
   `break_start` TIME DEFAULT NULL,
   `break_end` TIME DEFAULT NULL,
   `is_active` TINYINT(1) DEFAULT 1,
+  `single_appointment_per_day` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Un seul RDV autorisé ce jour-là',
   FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -122,6 +123,22 @@ CREATE TABLE IF NOT EXISTS `ab_holidays` (
   `date_start` DATE NOT NULL,
   `date_end` DATE NOT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: day_exceptions (exceptions ponctuelles au jour de la semaine :
+-- fermeture exceptionnelle ou "1 seul RDV" pour une date précise, ou
+-- réouverture normale un jour habituellement restreint)
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ab_day_exceptions` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `provider_id` INT UNSIGNED DEFAULT NULL COMMENT 'NULL = tous les prestataires',
+  `exception_date` DATE NOT NULL,
+  `mode` ENUM('normal', 'single_appointment', 'closed') NOT NULL DEFAULT 'normal',
+  `note` VARCHAR(200) DEFAULT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `provider_date` (`provider_id`, `exception_date`),
   FOREIGN KEY (`provider_id`) REFERENCES `ab_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

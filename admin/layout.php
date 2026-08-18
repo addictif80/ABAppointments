@@ -116,6 +116,9 @@ $openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
             <a href="<?= ab_url('admin/index.php?page=holidays') ?>" class="nav-link <?= $currentPage === 'holidays' ? 'active' : '' ?>">
                 <i class="bi bi-calendar-x"></i> Congés
             </a>
+            <a href="<?= ab_url('admin/index.php?page=day-exceptions') ?>" class="nav-link <?= $currentPage === 'day-exceptions' ? 'active' : '' ?>">
+                <i class="bi bi-calendar2-week"></i> Exceptions
+            </a>
 
             <?php if ($isAdmin): ?>
             <div class="nav-section">Système</div>

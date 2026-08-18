@@ -59,6 +59,26 @@ class AppointmentManager {
             [$providerId, $date]
         );
 
+        // Day exception overrides the weekly "1 seul RDV" rule for this exact date
+        // (a provider-specific exception takes precedence over a global one)
+        $exception = $this->db->fetchOne(
+            "SELECT mode FROM ab_day_exceptions
+             WHERE (provider_id = ? OR provider_id IS NULL) AND exception_date = ?
+             ORDER BY (provider_id IS NULL) ASC LIMIT 1",
+            [$providerId, $date]
+        );
+        if ($exception && $exception['mode'] === 'closed') {
+            $this->debugInfo['reason'] = 'Fermeture exceptionnelle';
+            return [];
+        }
+        $singleAppointmentDay = $exception
+            ? ($exception['mode'] === 'single_appointment')
+            : (bool) $workingHours['single_appointment_per_day'];
+        if ($singleAppointmentDay && !empty($appointments)) {
+            $this->debugInfo['reason'] = 'Un seul rendez-vous autorisé ce jour-là, déjà pris';
+            return [];
+        }
+
         // Get breaks
         $breaks = $this->db->fetchAll(
             "SELECT start_time, end_time FROM ab_breaks WHERE provider_id = ? AND day_of_week = ?",
@@ -194,6 +214,20 @@ class AppointmentManager {
             $appointmentsByDate[$appt['appt_date']][] = $appt;
         }
 
+        // Day exceptions overlapping this month, grouped by date (provider-specific first)
+        $dayExceptions = $this->db->fetchAll(
+            "SELECT provider_id, exception_date, mode FROM ab_day_exceptions
+             WHERE (provider_id = ? OR provider_id IS NULL) AND exception_date BETWEEN ? AND ?
+             ORDER BY (provider_id IS NULL) ASC",
+            [$providerId, $monthStart, $monthEnd]
+        );
+        $exceptionByDate = [];
+        foreach ($dayExceptions as $exc) {
+            if (!isset($exceptionByDate[$exc['exception_date']])) {
+                $exceptionByDate[$exc['exception_date']] = $exc['mode'];
+            }
+        }
+
         // All breaks for this provider, grouped by day_of_week
         $breaks = $this->db->fetchAll(
             "SELECT day_of_week, start_time, end_time FROM ab_breaks WHERE provider_id = ?",
@@ -227,6 +261,15 @@ class AppointmentManager {
                 }
             }
             if ($isHoliday) continue;
+
+            $exceptionMode = $exceptionByDate[$date] ?? null;
+            if ($exceptionMode === 'closed') continue;
+
+            $dayAppointmentsForSingleCheck = $appointmentsByDate[$date] ?? [];
+            $singleAppointmentDay = $exceptionMode
+                ? ($exceptionMode === 'single_appointment')
+                : (bool) $wh['single_appointment_per_day'];
+            if ($singleAppointmentDay && !empty($dayAppointmentsForSingleCheck)) continue;
 
             $startTime = strtotime($date . ' ' . $wh['start_time']);
             $endTime   = strtotime($date . ' ' . $wh['end_time']);
