@@ -61,6 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => [],
             'checkbox' => ['feature_waitlist_enabled', 'feature_reviews_enabled', 'feature_tickets_enabled', 'feature_deposits_enabled', 'feature_google_calendar_enabled'],
         ],
+        'urssaf' => [
+            'text' => ['urssaf_declaration_day', 'urssaf_recipient_email'],
+            'checkbox' => ['urssaf_enabled'],
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -97,6 +101,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'cgv_cgs' ? 'active' : '' ?>" href="?page=settings&tab=cgv_cgs">CGV / CGS</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'reviews' ? 'active' : '' ?>" href="?page=settings&tab=reviews">Avis clients</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'features' ? 'active' : '' ?>" href="?page=settings&tab=features">Fonctionnalités</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'urssaf' ? 'active' : '' ?>" href="?page=settings&tab=urssaf">URSSAF</a></li>
 </ul>
 
 <div class="card">
@@ -391,6 +396,37 @@ $tab = $_GET['tab'] ?? 'general';
             <label class="form-check-label" for="featGoogle"><strong><i class="bi bi-google"></i> Synchronisation Google Calendar</strong></label>
             <div class="text-muted small">Synchronisation automatique des rendez-vous avec Google Calendar.</div>
         </div>
+    </div>
+</div>
+            <?php elseif ($tab === 'urssaf'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Pour les auto-entrepreneurs : chaque mois, à la date choisie ci-dessous, un PDF récapitulant le détail des
+            rendez-vous confirmés/terminés du mois précédent et le chiffre d'affaires correspondant est généré et envoyé
+            par email, avec un rappel pour effectuer la déclaration sur autoentrepreneur.urssaf.fr.
+            Le chiffre d'affaires est calculé de la même façon que sur le tableau de bord (rendez-vous "confirmé" ou "terminé").
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input type="checkbox" name="urssaf_enabled" class="form-check-input" id="urssafEnabled" <?= ab_setting('urssaf_enabled', '0') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="urssafEnabled"><strong>Activer l'envoi automatique de la déclaration mensuelle</strong></label>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Jour du mois d'envoi</label>
+        <input type="number" name="urssaf_declaration_day" class="form-control" min="1" max="28" value="<?= ab_escape(ab_setting('urssaf_declaration_day', '5')) ?>">
+        <small class="text-muted">Le PDF est envoyé pour le mois précédent, ce jour-là (ou le jour suivant en cas d'échec, jusqu'à envoi réussi).</small>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Email destinataire</label>
+        <input type="email" name="urssaf_recipient_email" class="form-control" value="<?= ab_escape(ab_setting('urssaf_recipient_email')) ?>" placeholder="<?= ab_escape(ab_setting('business_email', 'admin@exemple.fr')) ?>">
+        <small class="text-muted">Laissez vide pour utiliser l'email professionnel (Général &gt; Email professionnel).</small>
+    </div>
+    <div class="col-12">
+        <a href="<?= ab_url('admin/index.php?page=urssaf') ?>" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> Voir l'historique et générer un rapport manuellement</a>
     </div>
 </div>
             <?php endif; ?>
