@@ -29,7 +29,10 @@ class Mailer {
         $this->fromName = $config['smtp_from_name'] ?? ($config['business_name'] ?? 'ABAppointments');
     }
 
-    public function send(string $to, string $subject, string $htmlBody, string $toName = ''): bool {
+    /**
+     * @param array<int, array{filename:string, content:string, mime:string}> $attachments
+     */
+    public function send(string $to, string $subject, string $htmlBody, string $toName = '', array $attachments = []): bool {
         if (empty($this->host)) {
             $this->lastError = 'SMTP non configuré';
             return false;
@@ -37,8 +40,8 @@ class Mailer {
 
         try {
             $boundary = md5(uniqid(time()));
-            $headers = $this->buildHeaders($boundary);
-            $body = $this->buildBody($htmlBody, $boundary);
+            $headers = $this->buildHeaders($boundary, !empty($attachments));
+            $body = $this->buildBody($htmlBody, $boundary, $attachments);
 
             $socket = $this->connect();
             if (!$socket) return false;
@@ -123,23 +126,59 @@ class Mailer {
         return $response;
     }
 
-    private function buildHeaders(string $boundary): string {
+    private function buildHeaders(string $boundary, bool $hasAttachments = false): string {
+        $type = $hasAttachments ? 'multipart/mixed' : 'multipart/alternative';
         return "MIME-Version: 1.0\r\n"
-            . "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+            . "Content-Type: {$type}; boundary=\"{$boundary}\"\r\n";
     }
 
-    private function buildBody(string $html, string $boundary): string {
+    /**
+     * @param array<int, array{filename:string, content:string, mime:string}> $attachments
+     */
+    private function buildBody(string $html, string $boundary, array $attachments = []): string {
         $text = strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html));
 
-        $body = "--{$boundary}\r\n";
-        $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
-        $body .= chunk_split(base64_encode($text)) . "\r\n";
+        if (empty($attachments)) {
+            $body = "--{$boundary}\r\n";
+            $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $body .= chunk_split(base64_encode($text)) . "\r\n";
 
-        $body .= "--{$boundary}\r\n";
-        $body .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
-        $body .= chunk_split(base64_encode($this->wrapHtmlTemplate($html))) . "\r\n";
+            $body .= "--{$boundary}\r\n";
+            $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $body .= chunk_split(base64_encode($this->wrapHtmlTemplate($html))) . "\r\n";
+
+            $body .= "--{$boundary}--";
+            return $body;
+        }
+
+        // With attachments, the message body itself is a nested
+        // multipart/alternative part inside the outer multipart/mixed.
+        $altBoundary = md5(uniqid((string) mt_rand(), true));
+        $alt = "--{$altBoundary}\r\n";
+        $alt .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $alt .= "Content-Transfer-Encoding: base64\r\n\r\n";
+        $alt .= chunk_split(base64_encode($text)) . "\r\n";
+
+        $alt .= "--{$altBoundary}\r\n";
+        $alt .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $alt .= "Content-Transfer-Encoding: base64\r\n\r\n";
+        $alt .= chunk_split(base64_encode($this->wrapHtmlTemplate($html))) . "\r\n";
+        $alt .= "--{$altBoundary}--";
+
+        $body = "--{$boundary}\r\n";
+        $body .= "Content-Type: multipart/alternative; boundary=\"{$altBoundary}\"\r\n\r\n";
+        $body .= $alt . "\r\n";
+
+        foreach ($attachments as $attachment) {
+            $filename = str_replace(['"', "\r", "\n"], '', $attachment['filename']);
+            $body .= "--{$boundary}\r\n";
+            $body .= "Content-Type: {$attachment['mime']}; name=\"{$filename}\"\r\n";
+            $body .= "Content-Transfer-Encoding: base64\r\n";
+            $body .= "Content-Disposition: attachment; filename=\"{$filename}\"\r\n\r\n";
+            $body .= chunk_split(base64_encode($attachment['content'])) . "\r\n";
+        }
 
         $body .= "--{$boundary}--";
         return $body;
@@ -162,7 +201,10 @@ class Mailer {
         return $this->lastError;
     }
 
-    public function sendTemplate(string $slug, string $to, array $variables, string $toName = ''): bool {
+    /**
+     * @param array<int, array{filename:string, content:string, mime:string}> $attachments
+     */
+    public function sendTemplate(string $slug, string $to, array $variables, string $toName = '', array $attachments = []): bool {
         $db = Database::getInstance();
         $template = $db->fetchOne("SELECT * FROM ab_email_templates WHERE slug = ? AND is_active = 1", [$slug]);
         if (!$template) {
@@ -178,6 +220,6 @@ class Mailer {
             $body = str_replace('{' . $key . '}', $value, $body);
         }
 
-        return $this->send($to, $subject, $body, $toName);
+        return $this->send($to, $subject, $body, $toName, $attachments);
     }
 }

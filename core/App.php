@@ -41,6 +41,8 @@ require_once __DIR__ . '/CalDAV.php';
 require_once __DIR__ . '/Waitlist.php';
 require_once __DIR__ . '/Reviews.php';
 require_once __DIR__ . '/Tickets.php';
+require_once __DIR__ . '/PdfWriter.php';
+require_once __DIR__ . '/UrssafReport.php';
 
 /**
  * Helper functions

@@ -94,6 +94,11 @@ $openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
                 <?php if ($openTicketsCount > 0): ?><span class="badge bg-danger ms-auto"><?= $openTicketsCount ?></span><?php endif; ?>
             </a>
             <?php endif; ?>
+            <?php if ($isAdmin): ?>
+            <a href="<?= ab_url('admin/index.php?page=urssaf') ?>" class="nav-link <?= $currentPage === 'urssaf' ? 'active' : '' ?>">
+                <i class="bi bi-file-earmark-pdf"></i> Déclaration URSSAF
+            </a>
+            <?php endif; ?>
 
             <div class="nav-section">Configuration</div>
             <a href="<?= ab_url('admin/index.php?page=services') ?>" class="nav-link <?= $currentPage === 'services' ? 'active' : '' ?>">
