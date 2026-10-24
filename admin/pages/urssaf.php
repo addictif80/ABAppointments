@@ -2,22 +2,6 @@
 Auth::requireAdmin();
 $db = Database::getInstance();
 
-// Stream a generated PDF to the browser (admin only).
-if (($_GET['action'] ?? '') === 'download' && isset($_GET['id'])) {
-    $declaration = $db->fetchOne("SELECT * FROM ab_urssaf_declarations WHERE id = ?", [(int) $_GET['id']]);
-    $path = $declaration ? __DIR__ . '/../../storage/urssaf_declarations/' . $declaration['pdf_filename'] : null;
-    if (!$declaration || !$path || !is_file($path)) {
-        http_response_code(404);
-        exit('Fichier non trouvé.');
-    }
-    header('Content-Type: application/pdf');
-    header('Content-Length: ' . filesize($path));
-    header('Content-Disposition: inline; filename="' . basename($path) . '"');
-    header('X-Content-Type-Options: nosniff');
-    readfile($path);
-    exit;
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'generate') {
     $year = (int) ($_POST['year'] ?? date('Y'));
     $month = (int) ($_POST['month'] ?? date('n'));
@@ -138,7 +122,7 @@ $prevMonthTs = strtotime('first day of last month');
                 </td>
                 <td>
                     <?php if ($d['pdf_filename']): ?>
-                    <a href="<?= ab_url('admin/index.php?page=urssaf&action=download&id=' . $d['id']) ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i> PDF</a>
+                    <a href="<?= ab_url('admin/urssaf-download.php?id=' . $d['id']) ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i> PDF</a>
                     <?php endif; ?>
                 </td>
             </tr>
