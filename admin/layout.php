@@ -67,28 +67,32 @@ $openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
             <a href="<?= ab_url('admin/index.php?page=dashboard') ?>" class="nav-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
                 <i class="bi bi-speedometer2"></i> Tableau de bord
             </a>
+            <?php if (ab_page_accessible('appointments')): ?>
             <a href="<?= ab_url('admin/index.php?page=appointments') ?>" class="nav-link <?= $currentPage === 'appointments' ? 'active' : '' ?>">
                 <i class="bi bi-calendar-check"></i> Rendez-vous
             </a>
+            <?php endif; ?>
+            <?php if (ab_page_accessible('customers')): ?>
             <a href="<?= ab_url('admin/index.php?page=customers') ?>" class="nav-link <?= $currentPage === 'customers' ? 'active' : '' ?>">
                 <i class="bi bi-people"></i> Clients
             </a>
-            <?php if (ab_feature_enabled('deposits')): ?>
+            <?php endif; ?>
+            <?php if (ab_feature_enabled('deposits') && ab_page_accessible('deposits')): ?>
             <a href="<?= ab_url('admin/index.php?page=deposits') ?>" class="nav-link <?= $currentPage === 'deposits' ? 'active' : '' ?>">
                 <i class="bi bi-cash-coin"></i> Acomptes
             </a>
             <?php endif; ?>
-            <?php if (ab_feature_enabled('waitlist')): ?>
+            <?php if (ab_feature_enabled('waitlist') && ab_page_accessible('waitlist')): ?>
             <a href="<?= ab_url('admin/index.php?page=waitlist') ?>" class="nav-link <?= $currentPage === 'waitlist' ? 'active' : '' ?>">
                 <i class="bi bi-bell"></i> Liste d'attente
             </a>
             <?php endif; ?>
-            <?php if (ab_feature_enabled('reviews')): ?>
+            <?php if (ab_feature_enabled('reviews') && ab_page_accessible('reviews')): ?>
             <a href="<?= ab_url('admin/index.php?page=reviews') ?>" class="nav-link <?= $currentPage === 'reviews' ? 'active' : '' ?>">
                 <i class="bi bi-star"></i> Avis clients
             </a>
             <?php endif; ?>
-            <?php if (ab_feature_enabled('tickets')): ?>
+            <?php if (ab_feature_enabled('tickets') && ab_page_accessible('tickets')): ?>
             <a href="<?= ab_url('admin/index.php?page=tickets') ?>" class="nav-link <?= $currentPage === 'tickets' ? 'active' : '' ?>">
                 <i class="bi bi-life-preserver"></i> Support
                 <?php if ($openTicketsCount > 0): ?><span class="badge bg-danger ms-auto"><?= $openTicketsCount ?></span><?php endif; ?>
@@ -101,29 +105,41 @@ $openTicketsCount = (new Tickets())->countOpen($isAdmin, Auth::userId());
             <?php endif; ?>
 
             <div class="nav-section">Configuration</div>
+            <?php if (ab_page_accessible('services')): ?>
             <a href="<?= ab_url('admin/index.php?page=services') ?>" class="nav-link <?= $currentPage === 'services' ? 'active' : '' ?>">
                 <i class="bi bi-palette"></i> Prestations
             </a>
+            <?php endif; ?>
+            <?php if (ab_page_accessible('categories')): ?>
             <a href="<?= ab_url('admin/index.php?page=categories') ?>" class="nav-link <?= $currentPage === 'categories' ? 'active' : '' ?>">
                 <i class="bi bi-tags"></i> Catégories
             </a>
+            <?php endif; ?>
+            <?php if (ab_page_accessible('booking-options')): ?>
             <a href="<?= ab_url('admin/index.php?page=booking-options') ?>" class="nav-link <?= $currentPage === 'booking-options' ? 'active' : '' ?>">
                 <i class="bi bi-plus-square"></i> Options
             </a>
+            <?php endif; ?>
             <?php if ($isAdmin): ?>
             <a href="<?= ab_url('admin/index.php?page=providers') ?>" class="nav-link <?= $currentPage === 'providers' ? 'active' : '' ?>">
                 <i class="bi bi-person-badge"></i> Prestataires
             </a>
             <?php endif; ?>
+            <?php if (ab_page_accessible('working-hours')): ?>
             <a href="<?= ab_url('admin/index.php?page=working-hours') ?>" class="nav-link <?= $currentPage === 'working-hours' ? 'active' : '' ?>">
                 <i class="bi bi-clock"></i> Horaires
             </a>
+            <?php endif; ?>
+            <?php if (ab_page_accessible('holidays')): ?>
             <a href="<?= ab_url('admin/index.php?page=holidays') ?>" class="nav-link <?= $currentPage === 'holidays' ? 'active' : '' ?>">
                 <i class="bi bi-calendar-x"></i> Congés
             </a>
+            <?php endif; ?>
+            <?php if (ab_page_accessible('day-exceptions')): ?>
             <a href="<?= ab_url('admin/index.php?page=day-exceptions') ?>" class="nav-link <?= $currentPage === 'day-exceptions' ? 'active' : '' ?>">
                 <i class="bi bi-calendar2-week"></i> Exceptions
             </a>
+            <?php endif; ?>
 
             <?php if ($isAdmin): ?>
             <div class="nav-section">Système</div>
