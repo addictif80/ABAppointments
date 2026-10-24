@@ -103,6 +103,39 @@ function ab_feature_enabled(string $feature): bool {
     return ab_setting($key, '1') === '1';
 }
 
+// Admin pages a shop owner may want to hide from the "provider" role (staff),
+// e.g. a provider who should only see their own appointments, not Clients or
+// Prestations. Admin accounts always have access to every page regardless of
+// this map. Key => [label shown in Settings > Rôles, ab_setting() key].
+// Pages not listed here (dashboard, profile) are always accessible to any
+// authenticated user, and pages gated with Auth::requireAdmin() (Paramètres,
+// Prestataires, Emails, URSSAF) stay admin-only and are not configurable here.
+const AB_ROLE_RESTRICTABLE_MODULES = [
+    'appointments' => ['label' => 'Rendez-vous', 'setting' => 'role_access_appointments'],
+    'customers' => ['label' => 'Clients', 'setting' => 'role_access_customers'],
+    'deposits' => ['label' => 'Acomptes', 'setting' => 'role_access_deposits'],
+    'waitlist' => ['label' => "Liste d'attente", 'setting' => 'role_access_waitlist'],
+    'reviews' => ['label' => 'Avis clients', 'setting' => 'role_access_reviews'],
+    'tickets' => ['label' => 'Support (tickets)', 'setting' => 'role_access_tickets'],
+    'services' => ['label' => 'Prestations', 'setting' => 'role_access_services'],
+    'categories' => ['label' => 'Catégories', 'setting' => 'role_access_categories'],
+    'booking-options' => ['label' => 'Options de réservation', 'setting' => 'role_access_booking_options'],
+    'working-hours' => ['label' => 'Horaires', 'setting' => 'role_access_working_hours'],
+    'holidays' => ['label' => 'Congés', 'setting' => 'role_access_holidays'],
+    'day-exceptions' => ['label' => 'Exceptions', 'setting' => 'role_access_day_exceptions'],
+];
+
+// Admins always have full access; a provider's access to a restrictable module
+// depends on the matching setting (enabled by default, so nothing changes for
+// existing installs until an admin explicitly restricts something).
+function ab_page_accessible(string $page): bool {
+    if (Auth::isAdmin()) return true;
+    $module = AB_ROLE_RESTRICTABLE_MODULES[$page] ?? null;
+    if (!$module) return true;
+    return ab_setting($module['setting'], '1') === '1';
+}
+
+
 function ab_format_date(string $datetime): string {
     $format = ab_setting('date_format', 'd/m/Y');
     return date($format, strtotime($datetime));

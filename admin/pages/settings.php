@@ -65,6 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'text' => ['urssaf_declaration_day', 'urssaf_recipient_email'],
             'checkbox' => ['urssaf_enabled'],
         ],
+        'roles' => [
+            'text' => [],
+            'checkbox' => array_map(fn($m) => $m['setting'], AB_ROLE_RESTRICTABLE_MODULES),
+        ],
     ];
 
     if (!isset($tabFields[$submittedTab])) {
@@ -102,6 +106,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'reviews' ? 'active' : '' ?>" href="?page=settings&tab=reviews">Avis clients</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'features' ? 'active' : '' ?>" href="?page=settings&tab=features">Fonctionnalités</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'urssaf' ? 'active' : '' ?>" href="?page=settings&tab=urssaf">URSSAF</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'roles' ? 'active' : '' ?>" href="?page=settings&tab=roles">Rôles</a></li>
 </ul>
 
 <div class="card">
@@ -427,6 +432,25 @@ $tab = $_GET['tab'] ?? 'general';
     </div>
     <div class="col-12">
         <a href="<?= ab_url('admin/index.php?page=urssaf') ?>" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> Voir l'historique et générer un rapport manuellement</a>
+    </div>
+</div>
+            <?php elseif ($tab === 'roles'): ?>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Les administrateurs ont toujours accès à tous les modules. Décochez un module ci-dessous pour le masquer
+            et en bloquer l'accès aux comptes <strong>prestataires</strong> (ils ne verront que leurs rendez-vous).
+            Certains modules sensibles (Paramètres, Emails, Prestataires, Déclaration URSSAF) restent toujours réservés aux administrateurs.
+        </div>
+    </div>
+    <div class="col-12">
+        <?php foreach (AB_ROLE_RESTRICTABLE_MODULES as $moduleKey => $module): ?>
+        <div class="form-check form-switch mb-2">
+            <input type="checkbox" name="<?= ab_escape($module['setting']) ?>" class="form-check-input" id="role_<?= ab_escape($moduleKey) ?>" <?= ab_setting($module['setting'], '1') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="role_<?= ab_escape($moduleKey) ?>"><?= ab_escape($module['label']) ?></label>
+        </div>
+        <?php endforeach; ?>
     </div>
 </div>
             <?php endif; ?>

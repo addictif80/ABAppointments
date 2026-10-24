@@ -36,6 +36,12 @@ if (isset($pageFeatureMap[$page]) && !ab_feature_enabled($pageFeatureMap[$page])
     ab_redirect(ab_url('admin/index.php?page=dashboard'));
 }
 
+// Block access to modules your role doesn't have permission for (configured in Paramètres > Rôles)
+if (!in_array($page, $publicPages) && !ab_page_accessible($page)) {
+    ab_flash('error', "Votre rôle n'a pas accès à ce module.");
+    ab_redirect(ab_url('admin/index.php?page=dashboard'));
+}
+
 $pageFile = __DIR__ . '/pages/' . $page . '.php';
 if (file_exists($pageFile)) {
     // Handle POST actions (skip CSRF for login which has its own handling)
