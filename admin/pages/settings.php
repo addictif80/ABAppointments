@@ -2,7 +2,19 @@
 Auth::requireAdmin();
 $db = Database::getInstance();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'generate_ics_token') {
+    Settings::set('ics_feed_token', bin2hex(random_bytes(16)));
+    ab_flash('success', 'Lien du calendrier régénéré. Les anciens liens ne fonctionneront plus.');
+    ab_redirect(ab_url('admin/index.php?page=settings&tab=calendar_feed'));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'revoke_ics_token') {
+    Settings::set('ics_feed_token', '');
+    ab_flash('success', 'Lien du calendrier désactivé.');
+    ab_redirect(ab_url('admin/index.php?page=settings&tab=calendar_feed'));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     // Only save fields that belong to the tab that was submitted, so that
     // editing one tab never wipes checkbox fields that live on another tab.
     $submittedTab = $_POST['_tab'] ?? 'general';
@@ -92,6 +104,7 @@ $tab = $_GET['tab'] ?? 'general';
     <li class="nav-item"><a class="nav-link <?= $tab === 'deposit' ? 'active' : '' ?>" href="?page=settings&tab=deposit">Acomptes</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'smtp' ? 'active' : '' ?>" href="?page=settings&tab=smtp">Email SMTP</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'google' ? 'active' : '' ?>" href="?page=settings&tab=google">Google Calendar</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'calendar_feed' ? 'active' : '' ?>" href="?page=settings&tab=calendar_feed">Lien calendrier</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'appearance' ? 'active' : '' ?>" href="?page=settings&tab=appearance">Apparence</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'age_check' ? 'active' : '' ?>" href="?page=settings&tab=age_check">Âge minimum</a></li>
     <li class="nav-item"><a class="nav-link <?= $tab === 'cgv_cgs' ? 'active' : '' ?>" href="?page=settings&tab=cgv_cgs">CGV / CGS</a></li>
@@ -101,9 +114,11 @@ $tab = $_GET['tab'] ?? 'general';
 
 <div class="card">
     <div class="card-body">
+        <?php if ($tab !== 'calendar_feed'): ?>
         <form method="POST">
             <?= Auth::csrfField() ?>
             <input type="hidden" name="_tab" value="<?= ab_escape($tab) ?>">
+        <?php endif; ?>
 
             <?php if ($tab === 'general'): ?>
             <div class="row g-3">
@@ -228,6 +243,69 @@ $tab = $_GET['tab'] ?? 'general';
                     <?php else: ?>
                     <a href="<?= $gcal->getAuthUrl(Auth::userId()) ?>" class="btn btn-outline-primary"><i class="bi bi-google"></i> Connecter Google Calendar</a>
                     <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <?php elseif ($tab === 'calendar_feed'):
+                $icsToken = ab_setting('ics_feed_token');
+                $providers = $db->fetchAll("SELECT id, first_name, last_name FROM ab_users WHERE is_active = 1 ORDER BY first_name");
+            ?>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Ce lien expose vos rendez-vous (hors annulés) au format iCal.
+                        Collez-le dans FamilyBoard ("Ajouter un calendrier CalDAV"), DAVdroid, Google Calendar, ou tout
+                        autre client qui accepte un abonnement iCal/webcal. Il ne nécessite aucun serveur CalDAV externe.
+                    </div>
+                </div>
+                <?php if ($icsToken): ?>
+                <div class="col-12">
+                    <label class="form-label">Lien du calendrier (tous les prestataires)</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" readonly value="<?= ab_escape(ab_url('calendar.ics') . '?token=' . $icsToken) ?>" id="icsFeedUrl">
+                        <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('icsFeedUrl').value);this.innerHTML='<i class=\'bi bi-check\'></i> Copié'"><i class="bi bi-clipboard"></i></button>
+                    </div>
+                </div>
+                <?php if ($providers): ?>
+                <div class="col-12">
+                    <label class="form-label">Liens par prestataire</label>
+                    <ul class="list-group">
+                        <?php foreach ($providers as $p): ?>
+                        <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                            <span><?= ab_escape($p['first_name'] . ' ' . $p['last_name']) ?></span>
+                            <div class="input-group" style="max-width:480px;">
+                                <input type="text" class="form-control form-control-sm" readonly
+                                       value="<?= ab_escape(ab_url('calendar.ics') . '?token=' . $icsToken . '&provider_id=' . $p['id']) ?>"
+                                       id="icsFeedUrl<?= $p['id'] ?>">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('icsFeedUrl<?= $p['id'] ?>').value);this.innerHTML='<i class=\'bi bi-check\'></i>'"><i class="bi bi-clipboard"></i></button>
+                            </div>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <?php endif; ?>
+                <div class="col-12">
+                    <form method="POST" onsubmit="return confirm('Régénérer le lien ? Les abonnements existants (FamilyBoard, DAVdroid...) cesseront de se mettre à jour jusqu\'à ce que vous les remettiez à jour avec le nouveau lien.')">
+                        <?= Auth::csrfField() ?>
+                        <input type="hidden" name="action" value="generate_ics_token">
+                        <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> Régénérer le lien</button>
+                    </form>
+                </div>
+                <div class="col-12">
+                    <form method="POST" onsubmit="return confirm('Désactiver le lien du calendrier ? Il ne sera plus accessible jusqu\'à ce que vous en régénériez un nouveau.')">
+                        <?= Auth::csrfField() ?>
+                        <input type="hidden" name="action" value="revoke_ics_token">
+                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle"></i> Désactiver le lien</button>
+                    </form>
+                </div>
+                <?php else: ?>
+                <div class="col-12">
+                    <form method="POST">
+                        <?= Auth::csrfField() ?>
+                        <input type="hidden" name="action" value="generate_ics_token">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-link-45deg"></i> Générer le lien du calendrier</button>
+                    </form>
                 </div>
                 <?php endif; ?>
             </div>
@@ -395,8 +473,10 @@ $tab = $_GET['tab'] ?? 'general';
 </div>
             <?php endif; ?>
 
+            <?php if ($tab !== 'calendar_feed'): ?>
             <hr>
             <button type="submit" class="btn btn-primary"><i class="bi bi-check"></i> Enregistrer</button>
         </form>
+            <?php endif; ?>
     </div>
 </div>

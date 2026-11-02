@@ -24,6 +24,12 @@ if (preg_match('#^manage/([a-zA-Z0-9]+)$#', $path, $matches)) {
     exit;
 }
 
+// Handle /calendar.ics route as fallback (if mod_rewrite fails)
+if ($path === 'calendar.ics') {
+    require __DIR__ . '/public/calendar-feed.php';
+    exit;
+}
+
 // Default: redirect to booking page (absolute URL)
 header('Location: ' . ab_url('public/'));
 exit;

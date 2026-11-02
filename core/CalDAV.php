@@ -225,9 +225,23 @@ class CalDAV {
     }
 
     /**
-     * Build iCalendar VEVENT string
+     * Build iCalendar VEVENT string wrapped in its own VCALENDAR (used for the push sync,
+     * one .ics file per event)
      */
     private function buildICalEvent(array $appointment, string $uid): string {
+        return "BEGIN:VCALENDAR\r\n"
+            . "VERSION:2.0\r\n"
+            . "PRODID:-//ABAppointments//CalDAV Sync//FR\r\n"
+            . "CALSCALE:GREGORIAN\r\n"
+            . $this->buildVEvent($appointment, $uid)
+            . "END:VCALENDAR\r\n";
+    }
+
+    /**
+     * Build a single VEVENT block (no VCALENDAR wrapper). Public so the read-only
+     * aggregated ICS feed (public/calendar-feed.php) can reuse the same event format.
+     */
+    public function buildVEvent(array $appointment, string $uid): string {
         $tz = Settings::get('timezone', 'Europe/Paris');
         $now = gmdate('Ymd\THis\Z');
 
@@ -251,11 +265,7 @@ class CalDAV {
             default => 'CONFIRMED',
         };
 
-        return "BEGIN:VCALENDAR\r\n"
-            . "VERSION:2.0\r\n"
-            . "PRODID:-//ABAppointments//CalDAV Sync//FR\r\n"
-            . "CALSCALE:GREGORIAN\r\n"
-            . "BEGIN:VEVENT\r\n"
+        return "BEGIN:VEVENT\r\n"
             . "UID:" . $uid . "\r\n"
             . "DTSTAMP:" . $now . "\r\n"
             . "DTSTART;TZID=" . $tz . ":" . $dtStart . "\r\n"
@@ -263,8 +273,14 @@ class CalDAV {
             . "SUMMARY:" . $summary . "\r\n"
             . "DESCRIPTION:" . $description . "\r\n"
             . "STATUS:" . $status . "\r\n"
-            . "END:VEVENT\r\n"
-            . "END:VCALENDAR\r\n";
+            . "END:VEVENT\r\n";
+    }
+
+    /**
+     * Build a stable UID for an appointment's calendar event (shared by push sync and feed)
+     */
+    public function eventUid(array $appointment, string $host): string {
+        return 'abappt-' . $appointment['id'] . '-' . $appointment['hash'] . '@' . $host;
     }
 
     /**
